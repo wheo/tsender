@@ -1,0 +1,123 @@
+#include "main.h"
+#include "core.h"
+
+extern char __BUILD_DATE;
+extern char __BUILD_NUMBER;
+
+using namespace std;
+
+CCore::CCore(void)
+{
+	m_bExit = false;
+	pthread_mutex_init(&m_mutex_trap, 0);
+}
+
+CCore::~CCore(void)
+{
+	m_bExit = true;
+
+	_d("[CORE] Trying to exit thread\n");
+	Terminate();
+	_d("[CORE] exited...\n");
+
+	Delete();
+
+	pthread_mutex_destroy(&m_mutex_trap);
+}
+
+bool CCore::Create()
+{
+
+	m_nChannel = 0;
+
+	ifstream ifs("./setting.json", ifstream::binary);
+
+	if (!ifs.is_open())
+	{
+		_d("\n ******************************************* \n setting.json file is not found\n Put in setting.json file in your directory\n ******************************************* \n\n");
+	}
+	else
+	{
+		//check done
+		//ifs >> m_root;
+		if (!m_reader.parse(ifs, m_root, true))
+		{
+			ifs.close();
+			_d("Failed to parse setting.json configuration\n%s\n", m_reader.getFormatedErrorMessages().c_str());
+			_d("[CORE.ch%d] Exit code\n");
+			exit(1);
+		}
+		else
+		{
+			ifs.close();
+
+			Json::Value attr;
+			attr["version"] = m_root["version"];
+			attr["file_dst"] = m_root["file_dst"];
+
+			// file_dst 디렉토리 없으면 생성
+			stringstream sstm;
+			sstm << "mkdir -p " << m_root["file_dst"].asString();
+			system(sstm.str().c_str());
+
+			cout << "version : " << attr["version"].asString() << endl;
+			cout << "file_dst : " << attr["file_dst"].asString() << endl;
+
+			for (auto &value : m_root["output_channels"])
+			{
+				m_CSender[m_nChannel] = new CSender();
+				m_CSender[m_nChannel]->Create(m_root["output_channels"][m_nChannel], attr, m_nChannel);
+				m_nChannel++;
+			}
+		}
+	}
+
+	Start();
+	return true;
+}
+
+void CCore::Run()
+{
+	while (!m_bExit)
+	{
+#if __DEBUG
+		cout << "[CORE] Thread is alive" << endl;
+#endif
+		sleep(1);
+	}
+	Delete();
+	_d("[CORE] Thread has been exited\n");
+}
+#if 0
+bool CCore::GetOutputs(string basepath) {
+	string path;
+	DIR *dir = opendir(basepath.c_str());
+	struct dirent *ent;
+	
+	while ((ent = readdir(dir)) != NULL) {
+		//cout << "d_name : " << ent->d_name << endl;
+		if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0) {
+			if ( ent->d_type == DT_DIR) {
+				path.clear();
+				path.append(basepath);
+				path.append("/");
+				path.append(ent->d_name);
+				//cout << "path : " << path;
+				GetOutputs(path);
+			} else {
+				cout << basepath << "/" << ent->d_name << endl;
+			}
+		}
+	}
+	closedir (dir);
+	return EXIT_SUCCESS;
+}
+#endif
+
+void CCore::Delete()
+{
+	for (int i = 0; i < m_nChannel; i++)
+	{
+		SAFE_DELETE(m_CSender[i]);
+	}
+}
