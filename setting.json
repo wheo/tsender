@@ -1,9 +1,10 @@
 {
-	"_comment": "version 프로그램 버전, file_dst 파일이 저장되는 폴더 이름, make_folder_interval : 폴더 생성 주기 ( sec ), rec_sec : 녹화 파일 생성 주기 ( sec ), channels 채널 정보",
 	"version": "1.0.0",
 	"file_dst": "output",
 	"make_folder_interval": 30,
 	"rec_sec": 30,
+	"codec": 1,
+	"udp_port": 5006,
 	"channels": [
 		{
 			"ip": "228.67.43.91",

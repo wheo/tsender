@@ -17,10 +17,9 @@ CCore::~CCore(void)
 	m_bExit = true;
 
 	_d("[CORE] Trying to exit thread\n");
+	Delete();
 	Terminate();
 	_d("[CORE] exited...\n");
-
-	Delete();
 
 	pthread_mutex_destroy(&m_mutex_trap);
 }
@@ -52,8 +51,11 @@ bool CCore::Create()
 			ifs.close();
 
 			Json::Value attr;
+			attr = m_root;
+#if 0
 			attr["version"] = m_root["version"];
 			attr["file_dst"] = m_root["file_dst"];
+#endif
 
 			// file_dst 디렉토리 없으면 생성
 			stringstream sstm;
@@ -62,13 +64,16 @@ bool CCore::Create()
 
 			cout << "version : " << attr["version"].asString() << endl;
 			cout << "file_dst : " << attr["file_dst"].asString() << endl;
-
+#if 0
 			for (auto &value : m_root["output_channels"])
 			{
 				m_CSender[m_nChannel] = new CSender();
 				m_CSender[m_nChannel]->Create(m_root["output_channels"][m_nChannel], attr, m_nChannel);
 				m_nChannel++;
 			}
+#endif
+			m_comm = new CCommMgr();
+			m_comm->Open(attr["udp_port"].asInt(), attr);
 		}
 	}
 
@@ -116,8 +121,5 @@ bool CCore::GetOutputs(string basepath) {
 
 void CCore::Delete()
 {
-	for (int i = 0; i < m_nChannel; i++)
-	{
-		SAFE_DELETE(m_CSender[i]);
-	}
+	SAFE_DELETE(m_comm);
 }

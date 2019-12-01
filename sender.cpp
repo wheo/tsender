@@ -23,7 +23,6 @@ CSender::~CSender(void)
 	_d("[SENDER.ch%d] Trying to exit thread\n", m_nChannel);
 	Terminate();
 	_d("[SENDER.ch%d] exited...\n", m_nChannel);
-
 	Delete();
 
 	pthread_mutex_destroy(&m_mutex_sender);
@@ -39,6 +38,7 @@ bool CSender::Create(Json::Value info, Json::Value attr, int nChannel)
 	m_nChannel = nChannel;
 	m_attr = attr;
 	m_file_idx = 0;
+	m_nSpeed = 1;
 
 	Start();
 
@@ -137,7 +137,6 @@ bool CSender::GetChannelFiles(string path)
 
 bool CSender::Send()
 {
-
 	cout << "[ch." << m_nChannel << "] : " << m_attr["file_dst"].asString() << endl;
 
 	struct ip_mreq mreq;
@@ -226,7 +225,7 @@ int CSender::Demux(string src_filename)
 		AVPacket org_pkt = m_pkt;
 		//cout << "packet size : " << m_pkt.size << endl;
 		send_bitstream(org_pkt.data, org_pkt.size);
-		usleep(3336);
+		usleep(3336 / m_nSpeed);
 
 		av_packet_unref(&org_pkt);
 	}
@@ -399,26 +398,6 @@ int CSender::get_format_from_sample_fmt(const char **fmt, enum AVSampleFormat sa
 
 void CSender::Delete()
 {
-	/*
-	char mname[64];
-	char sname[64];
-
-	if (m_shared.pc) {
-		munmap(m_shared.pc, sizeof(channel_s));
-	}
-	if (shm_unlink(m_strShmPrefix) != 0) {
-		_d("[SENDER.ch%d] Failed to unlink\n", m_nChannel);
-	}
-	if (sem_close(m_shared.cmd.mutex) < 0) {
-		_d("[SENDER.ch%d] Failed to close sem(aud mutex)\n", m_nChannel);
-	}
-	if (sem_close(m_shared.cmd.signal) < 0) {
-		_d("[SENDER.ch%d] Failed to close sem(aud signal)\n", m_nChannel);
-	}
-	sprintf(mname, "%s_cmd_mutex", m_strShmPrefix);
-	sprintf(sname, "%s_cmd_signal", m_strShmPrefix);
-
-	sem_unlink(mname);
-	sem_unlink(sname);
-	*/
+	cout << "sock " << m_sock << " closed" << endl;
+	close(m_sock);
 }

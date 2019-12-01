@@ -30,7 +30,8 @@
 
 #include "json/json.h"
 
-extern "C" {
+extern "C"
+{
 #include "libavutil/opt.h"
 #include "libavcodec/avcodec.h"
 #include "libavutil/imgutils.h"
@@ -46,7 +47,7 @@ extern "C" {
 #include "libswresample/swresample.h"
 }
 
-#define __DEBUG 1
+#define __DEBUG 0
 
 #include "misc.h"
 
@@ -54,16 +55,27 @@ extern "C" {
 
 #ifdef DEBUG
 #undef DEBUG
-#define _d(fmt, args...) { printf(fmt, ## args); }
+#define _d(fmt, args...)     \
+    {                        \
+        printf(fmt, ##args); \
+    }
 #else
 #undef DEBUG
-#define _d(fmt, args...) { printf(fmt, ## args); }
+#define _d(fmt, args...)     \
+    {                        \
+        printf(fmt, ##args); \
+    }
 //#define _d(fmt, args...)
 #endif
 
-#define MAX_PROFILES			5
-#define MAX_AUDIO_TRACKS		2
-#define STAT_VIDEO_LOST			0x1000
+#define MAX_PROFILES 5
+#define MAX_AUDIO_TRACKS 2
+#define STAT_VIDEO_LOST 0x1000
 
-#define SAFE_DELETE(x) { if (x) delete x; x = NULL; }
+#define SAFE_DELETE(x) \
+    {                  \
+        if (x)         \
+            delete x;  \
+        x = NULL;      \
+    }
 #endif

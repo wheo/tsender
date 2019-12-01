@@ -91,6 +91,7 @@ BUILD_NUMBER_FILE=build-number.txt
 GROUP.01.SRC = main.cpp\
 			misc.cpp\
 			core.cpp\
+			comm.cpp\
 			sender.cpp\
 			tsmuxer.cpp\
 			tspes.cpp\

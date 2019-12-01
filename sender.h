@@ -15,6 +15,8 @@ public:
 	int ReadSocket(uint8_t *buffer, unsigned bufferSize);
 	bool Create(Json::Value info, Json::Value attr, int nChannel);
 	void Delete();
+	bool SetSpeed(int speed) { m_nSpeed = speed; }
+	int GetSpeed() { return m_nSpeed; }
 
 	bool Send();
 	void log(int type, int state);
@@ -23,6 +25,7 @@ public:
 	int Demux(string src_filename);
 
 protected:
+	int m_nSpeed;
 	int m_nChannel;		// 현재 채널 넘버
 	Json::Value m_info; // 채널 정보 json
 	Json::Value m_attr; // 채널 공유 속성 attribute

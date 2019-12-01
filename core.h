@@ -1,32 +1,32 @@
 #ifndef _CCORE_H_
 #define _CCORE_H_
 
-#define MAX_NUM_TRAPS			32
-#define MAX_NUM_CHANNEL			6
+#define MAX_NUM_TRAPS 32
 
-#include "sender.h"
+#include "comm.h"
 
-class CCore : public PThread {
+class CCore : public PThread
+{
 public:
 	CCore(void);
 	~CCore(void);
-	
-	bool Create();	
+
+	bool Create();
 	void Delete();
 
 	//bool GetOutputs(string basepath);
 
 protected:
 	pthread_mutex_t m_mutex_trap;
+
 private:
 	int m_nChannel;
 	Json::Value m_root;
 	Json::Reader m_reader;
-	CSender *m_CSender[MAX_NUM_CHANNEL];
+	CCommMgr *m_comm;
 
 protected:
 	void Run();
-	void OnTerminate() {};
-
+	void OnTerminate(){};
 };
 #endif // _CCORE_H_
