@@ -64,6 +64,7 @@ protected:
     bool m_bIsRunning;
     Json::Value m_attr;
     CSender *m_CSender[MAX_NUM_CHANNEL];
+    pthread_mutex_t m_mutex_comm;
 
 protected:
     //CCommCt *m_pCt[MAX_NUM_SIM_CLIENT];

@@ -19,7 +19,7 @@ CCore::~CCore(void)
 	_d("[CORE] Trying to exit thread\n");
 	Delete();
 	Terminate();
-	_d("[CORE] exited...\n");
+	_d("[CORE] Exited...\n");
 
 	pthread_mutex_destroy(&m_mutex_trap);
 }
@@ -73,7 +73,7 @@ bool CCore::Create()
 			}
 #endif
 			m_comm = new CCommMgr();
-			m_comm->Open(attr["udp_port"].asInt(), attr);
+			m_comm->Open(attr["udp_sender_port"].asInt(), attr);
 		}
 	}
 

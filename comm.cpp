@@ -4,11 +4,15 @@ using namespace std;
 
 CCommMgr::CCommMgr()
 {
+    m_bExit = false;
+    pthread_mutex_init(&m_mutex_comm, 0);
 }
 
 CCommMgr::~CCommMgr()
 {
+    m_bExit = true;
     Delete();
+    pthread_mutex_destroy(&m_mutex_comm);
     close(m_sdListen);
 }
 
@@ -32,7 +36,7 @@ void CCommMgr::Run()
     m_sdListen = socket(PF_INET, SOCK_DGRAM, 0);
     if (m_sdListen < 0)
     {
-        _d("[CMGR] Failed to open socket\n");
+        _d("[COMM] Failed to open socket\n");
     }
 
     memset(&sin, 0, sizeof(struct sockaddr_in));
@@ -44,56 +48,57 @@ void CCommMgr::Run()
 
     if (bind(m_sdListen, (const sockaddr *)&sin, sizeof(sin)) < 0)
     {
-        _d("[CMGR] Failed to bind to port %d\n", sin.sin_port);
+        _d("[COMM] Failed to bind to port %d\n", sin.sin_port);
     }
 
     socklen_t sin_size = sizeof(sin);
 
-    cout << "udp ready port : " << m_nPort << endl;
+    cout << "[COMM] udp port ready : " << m_nPort << endl;
 
     while (!m_bExit)
     {
         recvfrom(m_sdListen, buff, 4, 0, (struct sockaddr *)&sin, &sin_size);
-        //_d("%c %c %c %c\n", buff[0], buff[1], buff[2], buff[3]);
-        if (buff[0] == 't' && buff[1] == 'n')
+        _d("%c %c %c %c\n", buff[0], buff[1], buff[2], buff[3]);
+        if (buff[0] == 'T' && buff[1] == 'N')
         {
-            if (buff[2] == '0')
+            if (buff[2] == 0x00)
             {
-                if (buff[3] == '1')
+                if (buff[3] == 0x01)
                 {
                     _d("tn01 실행\n");
                     if (!m_bIsRunning)
                     {
                         m_bIsRunning = true;
                         m_nChannel = 0;
-                        for (auto &value : m_attr["channels"])
+                        for (auto &value : m_attr["output_channels"])
                         {
                             m_CSender[m_nChannel] = new CSender();
-                            m_CSender[m_nChannel]->Create(m_attr["channels"][m_nChannel], m_attr, m_nChannel);
+                            m_CSender[m_nChannel]->SetMutex(&m_mutex_comm);
+                            m_CSender[m_nChannel]->Create(m_attr["output_channels"][m_nChannel], m_attr, m_nChannel);
                             m_nChannel++;
                         }
                     }
                     else
                     {
-                        cout << "실행 중" << endl;
+                        cout << "[COMM] 실행 중" << endl;
                     }
                 }
-                else if (buff[3] == '2')
+                else if (buff[3] == 0x02)
                 {
                     _d("tn02 실행\n");
                     if (m_bIsRunning)
                     {
                         Delete();
-                        _d("Sender 종료\n");
+                        _d("[COMM] Sender 종료\n");
                         m_nChannel = 0;
                         m_bIsRunning = false;
                     }
                     else
                     {
-                        _d("실행 중이 아닙니다.\n");
+                        _d("[COMM] 실행 중이 아닙니다.\n");
                     }
                 }
-                else if (buff[3] == '3')
+                else if (buff[3] == 0x03)
                 {
                     //배속 재생
                     if (m_bIsRunning)
@@ -108,7 +113,7 @@ void CCommMgr::Run()
                 }
             }
             sendto(m_sdListen, buff, 4, 0, (struct sockaddr *)&sin, sin_size);
-            cout << "ip : " << inet_ntoa(sin.sin_addr) << " send message : " << buff << endl;
+            cout << "ip : " << inet_ntoa(sin.sin_addr) << " send message : " << buff[0] << buff[1] << buff[2] << buff[3] << endl;
         }
         else
         {

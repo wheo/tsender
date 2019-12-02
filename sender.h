@@ -18,6 +18,10 @@ public:
 	bool SetSpeed(int speed) { m_nSpeed = speed; }
 	int GetSpeed() { return m_nSpeed; }
 
+	bool SetMutex(pthread_mutex_t *mutex_sender);
+	bool SetSocket();
+	pthread_mutex_t *GetMutex() { return m_mutex_sender; }
+
 	bool Send();
 	void log(int type, int state);
 	bool GetOutputs(string basepath);
@@ -34,7 +38,7 @@ protected:
 	int m_nRead;
 	int m_nWrite;
 
-	pthread_mutex_t m_mutex_sender;
+	pthread_mutex_t *m_mutex_sender;
 
 private:
 	//mux_cfg_s m_mux_cfg;
@@ -46,6 +50,10 @@ private:
 	sockaddr_in m_mcast_group;
 	AVPacket m_pkt;
 	AVFormatContext *fmt_ctx;
+	int m_index = 0;
+
+	const AVBitStreamFilter *m_bsf = NULL;
+	AVBSFContext *m_bsfc = NULL;
 
 	string m_filename;
 

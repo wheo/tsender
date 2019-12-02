@@ -7,13 +7,11 @@ extern char __BUILD_NUMBER;
 #define MAX_NUM_bitstream 4
 #define MAX_frame_size 1024 * 1024 // 1MB
 
-using namespace std;
-
 CSender::CSender(void)
 {
 	m_bExit = false;
 
-	pthread_mutex_init(&m_mutex_sender, 0);
+	//pthread_mutex_init(&m_mutex_sender, 0);
 }
 
 CSender::~CSender(void)
@@ -25,7 +23,7 @@ CSender::~CSender(void)
 	_d("[SENDER.ch%d] exited...\n", m_nChannel);
 	Delete();
 
-	pthread_mutex_destroy(&m_mutex_sender);
+	//pthread_mutex_destroy(&m_mutex_sender);
 }
 
 void CSender::log(int type, int state)
@@ -45,97 +43,13 @@ bool CSender::Create(Json::Value info, Json::Value attr, int nChannel)
 	return true;
 }
 
-void CSender::Run()
+bool CSender::SetMutex(pthread_mutex_t *mutex)
 {
-	//m_pMuxer = new CTSMuxer();
-	//m_pPktPool = new CMyPacketPool();
-
-#if __DEBUG
-	pthread_mutex_lock(&m_mutex_sender);
-	cout << "[ch." << m_nChannel << "] : " << m_info["ip"].asString() << endl;
-	cout << "[ch." << m_nChannel << "] : " << m_info["port"].asInt() << endl;
-	cout << "[ch." << m_nChannel << "] : " << m_info["fps"].asDouble() << endl;
-	pthread_mutex_unlock(&m_mutex_sender);
-#endif
-
-	while (!m_bExit)
-	{
-		if (!Send())
-		{
-			//error send() return false
-		}
-		else
-		{
-			// send() eturn true
-		}
-	}
-	//SAFE_DELETE(m_pMuxer);
-	//SAFE_DELETE(m_pPktPool);
+	m_mutex_sender = mutex;
+	cout << "m_mutex_sender address : " << m_mutex_sender << endl;
 }
 
-bool CSender::GetOutputs(string basepath)
-{
-	string path;
-	DIR *dir = opendir(basepath.c_str());
-	struct dirent *ent;
-
-	string channel;
-
-	channel = to_string(m_nChannel);
-
-	while ((ent = readdir(dir)) != NULL)
-	{
-		//cout << "d_name : " << ent->d_name << endl;
-		if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0)
-		{
-			if (ent->d_type == DT_DIR)
-			{
-				path.clear();
-				path.append(basepath);
-				path.append("/");
-				path.append(ent->d_name);
-				//cout << "path : " << path;
-				//cout << "string channel : " << channel << ", ent->d_name : " << ent->d_name << ", path : " << path << endl;
-				if (channel.compare(ent->d_name) == 0)
-				{
-					cout << "channel : " << channel << " : " << path << endl;
-					GetChannelFiles(path);
-				}
-				GetOutputs(path);
-			}
-			else
-			{
-				//cout << "channel : " << channel << ", " << basepath << "/" << ent->d_name << endl;
-			}
-		}
-	}
-	closedir(dir);
-	return EXIT_SUCCESS;
-}
-
-bool CSender::GetChannelFiles(string path)
-{
-	DIR *dir = opendir(path.c_str());
-	struct dirent *ent;
-	stringstream ss;
-
-	while ((ent = readdir(dir)) != NULL)
-	{
-		if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0)
-		{
-			if (ent->d_type != DT_DIR)
-			{
-				cout << "channel : " << m_nChannel << ", path : " << path << "/" << ent->d_name << endl;
-				ss << path << "/" << ent->d_name;
-				Demux(ss.str());
-				ss.str("");
-			}
-		}
-	}
-	return EXIT_SUCCESS;
-}
-
-bool CSender::Send()
+bool CSender::SetSocket()
 {
 	cout << "[ch." << m_nChannel << "] : " << m_attr["file_dst"].asString() << endl;
 
@@ -168,7 +82,7 @@ bool CSender::Send()
 		return false;
 	}
 
-	uint ttl = 64;
+	uint ttl = 16;
 	state = setsockopt(m_sock, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
 	if (state < 0)
 	{
@@ -193,19 +107,132 @@ bool CSender::Send()
 		perror("[RECV] set timeout error");
 		return false;
 	}
+}
 
-	GetOutputs(m_attr["file_dst"].asString());
+void CSender::Run()
+{
+	//m_pMuxer = new CTSMuxer();
+	//m_pPktPool = new CMyPacketPool();
+
+#if __DEBUG
+	pthread_mutex_lock(&m_mutex_sender);
+	cout << "[ch." << m_nChannel << "] : " << m_info["ip"].asString() << endl;
+	cout << "[ch." << m_nChannel << "] : " << m_info["port"].asInt() << endl;
+	cout << "[ch." << m_nChannel << "] : " << m_info["fps"].asDouble() << endl;
+	pthread_mutex_unlock(&m_mutex_sender);
+#endif
+
+	SetSocket();
 
 	while (!m_bExit)
 	{
-		//cout << "[SENDER.ch" << m_nChannel << "] Send() Alive" << endl;
-		sleep(1);
+		if (!Send())
+		{
+			//error send() return false
+		}
+		else
+		{
+			cout << "[SENDER] sender loop" << endl;
+			// send() eturn true
+		}
+		usleep(1000);
 	}
+	//SAFE_DELETE(m_pMuxer);
+	//SAFE_DELETE(m_pPktPool);
+}
+
+bool CSender::GetOutputs(string basepath)
+{
+	string path;
+	DIR *dir = opendir(basepath.c_str());
+	struct dirent *ent;
+
+	string channel;
+
+	channel = to_string(m_nChannel);
+
+	pthread_mutex_lock(m_mutex_sender);
+	while ((ent = readdir(dir)) != NULL && !m_bExit)
+	{
+		pthread_mutex_unlock(m_mutex_sender);
+		//cout << "d_name : " << ent->d_name << endl;
+		if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0)
+		{
+			if (ent->d_type == DT_DIR)
+			{
+				path.clear();
+				path.append(basepath);
+				path.append("/");
+				path.append(ent->d_name);
+				//cout << "path : " << path;
+				//cout << "string channel : " << channel << ", ent->d_name : " << ent->d_name << ", path : " << path << endl;
+				if (channel.compare(ent->d_name) == 0)
+				{
+					cout << "channel : " << channel << " : " << path << endl;
+					GetChannelFiles(path);
+				}
+				GetOutputs(path);
+			}
+			else
+			{
+				//cout << "channel : " << channel << ", " << basepath << "/" << ent->d_name << endl;
+			}
+		}
+	}
+	pthread_mutex_unlock(m_mutex_sender);
+	closedir(dir);
+	return EXIT_SUCCESS;
+}
+
+bool CSender::GetChannelFiles(string path)
+{
+	DIR *dir = opendir(path.c_str());
+	struct dirent *ent;
+	stringstream ss;
+	cout << "path : " << path << endl;
+
+	while ((ent = readdir(dir)) != NULL && !m_bExit)
+	{
+		if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0)
+		{
+			if (ent->d_type != DT_DIR)
+			{
+				cout << "channel : " << m_nChannel << ", path : " << path << "/" << ent->d_name << endl;
+				ss << path << "/" << ent->d_name;
+				Demux(ss.str());
+				ss.str("");
+			}
+		}
+	}
+	return EXIT_SUCCESS;
+}
+
+bool CSender::Send()
+{
+	if (m_nChannel == 0)
+	{
+		//cout << "[SENDER.ch" << m_nChannel << "] Send() Alive" << endl;
+		GetOutputs(m_attr["file_dst"].asString());
+		cout << "[SENDER.ch" << m_nChannel << "] one loop completed" << endl;
+		usleep(10);
+	}
+
 	return true;
 }
 
 int CSender::Demux(string src_filename)
 {
+	string channel;
+	string index = to_string(m_index);
+	channel = to_string(m_nChannel);
+	string es2_name = "/opt/tnmtech/" + channel + "_" + index + ".264";
+	cout << "es_name : " << es2_name << endl;
+	m_index++;
+
+#if __DUMP
+	FILE *es2 = fopen(es2_name.c_str(), "wb");
+#endif
+
 	if (avformat_open_input(&fmt_ctx, src_filename.c_str(), NULL, NULL) < 0)
 	{
 		fprintf(stderr, "Could not open source file %s\n", src_filename.c_str());
@@ -216,23 +243,63 @@ int CSender::Demux(string src_filename)
 		cout << "[SENDER.ch" << m_nChannel << "] " << src_filename << " file is opened" << endl;
 	}
 
+	m_bsf = av_bsf_get_by_name("h264_mp4toannexb");
+
+	if (av_bsf_alloc(m_bsf, &m_bsfc) < 0)
+	{
+		_d("Failed to alloc bsfc\n");
+	}
+	if (avcodec_parameters_copy(m_bsfc->par_in, fmt_ctx->streams[0]->codecpar) < 0)
+	{
+		_d("Failed to copy codec param.\n");
+	}
+	m_bsfc->time_base_in = fmt_ctx->streams[0]->time_base;
+
+	if (av_bsf_init(m_bsfc) < 0)
+	{
+		_d("Failed to init bsfc\n");
+	}
+
+#if 0
 	av_init_packet(&m_pkt);
 	m_pkt.data = NULL;
 	m_pkt.size = 0;
+#endif
 
-	while (av_read_frame(fmt_ctx, &m_pkt) >= 0)
+	double fTime = m_info["fps"].asDouble();
+	long long wait_until;
+
+	high_resolution_clock::time_point begin = high_resolution_clock::now();
+	while (!m_bExit)
 	{
-		AVPacket org_pkt = m_pkt;
-		//cout << "packet size : " << m_pkt.size << endl;
-		send_bitstream(org_pkt.data, org_pkt.size);
-		usleep(3336 / m_nSpeed);
+		AVPacket pkt;
+		av_init_packet(&pkt);
+		if (av_read_frame(fmt_ctx, &pkt) < 0)
+		{
+			cout << "[SENDER] meet EOF" << endl;
+			break;
+		}
 
-		av_packet_unref(&org_pkt);
+		high_resolution_clock::time_point end = high_resolution_clock::now();
+		int64_t tick_diff = duration_cast<microseconds>(end - begin).count();
+		//cout << "tick-diff : " << tick_diff << " ";
+
+		av_bsf_send_packet(m_bsfc, &pkt);
+
+		while (av_bsf_receive_packet(m_bsfc, &pkt) == 0)
+		{
+			send_bitstream(pkt.data, pkt.size);
+			begin = end;
+#if __DUMP
+			fwrite(pkt.data, 1, pkt.size, es2);
+#endif
+		}
+		usleep(3333);
+		av_packet_unref(&pkt);
 	}
-
-	m_pkt.data = NULL;
-	m_pkt.size = 0;
-
+#if __DUMP
+	fclose(es2);
+#endif
 	avformat_close_input(&fmt_ctx);
 	cout << "[SENDER.ch" << m_nChannel << "] " << src_filename << " file is closed" << endl;
 
@@ -289,9 +356,10 @@ bool CSender::send_bitstream(uint8_t *stream, int size)
 		}
 		else
 		{
-			//cout << "[SENDER.ch" << m_nChannel << "] [" << cur_packet << "] send byte : " << nSendto << endl;
+#if __DEBUG
 			cout << "[SENDER.ch" << m_nChannel << "] "
 				 << "tot_size : " << tot_size << ", cur_size : " << cur_size << ", tot_packet : " << tot_packet << ", cur_packet : " << cur_packet << endl;
+#endif
 		}
 
 		remain -= cur_size;
