@@ -11,54 +11,103 @@ CCommMgr::CCommMgr()
 CCommMgr::~CCommMgr()
 {
     m_bExit = true;
-    Delete();
     pthread_mutex_destroy(&m_mutex_comm);
-    close(m_sdListen);
+    cout << "[COMM] Trying to exit thread" << endl;
+    Delete();
+    if ( m_sdRecv > 0 ) {
+        close(m_sdRecv);
+        cout << "[COMM] RECV socket(" << m_sdRecv << ") has been closed" << endl;
+    }
+    if ( m_sdSend > 0 ) {
+        close(m_sdSend);
+        cout << "[COMM] SEND socket(" << m_sdSend << ") has been closed" << endl;
+    }
+    cout << "[COMM] before Terminate()" << endl;
+    Terminate();
+    cout << "[COMM] Exited..." << endl;
+}
+
+bool CCommMgr::SetSocket() {
+    int t = 1;
+    struct sockaddr_in sin;
+
+    m_sdRecv = socket(PF_INET, SOCK_DGRAM, 0);
+    if (m_sdRecv < 0)
+    {
+        _d("[COMM] Failed to open rx socket\n");
+        return false;
+    }
+
+    memset(&sin, 0, sizeof(struct sockaddr_in));
+    sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = htonl(INADDR_ANY);
+    sin.sin_port = htons(m_nPort);
+
+    setsockopt(m_sdRecv, SOL_SOCKET, SO_REUSEADDR, (const char *)&t, sizeof(t));
+
+    if (bind(m_sdRecv, (const sockaddr *)&sin, sizeof(sin)) < 0)
+    {
+        _d("[COMM] Failed to bind to port %d\n", sin.sin_port);
+        return false;
+    }
+
+	struct timeval read_timeout;
+	read_timeout.tv_sec = 1;
+	read_timeout.tv_usec = 0;
+	if (setsockopt(m_sdRecv, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout)) < 0)
+	{
+		cout << "[COMM] set timeout error" << endl;
+		return false;
+	}
+
+    m_sdSend = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if ( m_sdSend < 0 ) {
+        _d("[COMM] failed to open tx socket\n");
+    }
+    return EXIT_SUCCESS;
 }
 
 bool CCommMgr::Open(int nPort, Json::Value attr)
 {
     m_nChannel = 0;
+    m_nSpeed = 1;
     m_bIsRunning = false;
     m_nPort = nPort;
     m_attr = attr;
+
+    SetSocket();
+    cout << "[COMM] Before Thread Start" << endl;
     Start();
 
     return true;
 }
 
-void CCommMgr::Run()
-{
-    int t = 1;
-    char buff[4];
+bool CCommMgr::RX() {
+    char buff[5];
+    int rd = 0;
+
     struct sockaddr_in sin;
-
-    m_sdListen = socket(PF_INET, SOCK_DGRAM, 0);
-    if (m_sdListen < 0)
-    {
-        _d("[COMM] Failed to open socket\n");
-    }
-
-    memset(&sin, 0, sizeof(struct sockaddr_in));
-    sin.sin_family = PF_INET;
-    sin.sin_addr.s_addr = htonl(INADDR_ANY);
-    sin.sin_port = htons(m_nPort);
-
-    setsockopt(m_sdListen, SOL_SOCKET, SO_REUSEADDR, (const char *)&t, sizeof(t));
-
-    if (bind(m_sdListen, (const sockaddr *)&sin, sizeof(sin)) < 0)
-    {
-        _d("[COMM] Failed to bind to port %d\n", sin.sin_port);
-    }
 
     socklen_t sin_size = sizeof(sin);
 
-    cout << "[COMM] udp port ready : " << m_nPort << endl;
+    cout << "[COMM] udp RX ready (port) : " << m_nPort << endl;
 
     while (!m_bExit)
     {
-        recvfrom(m_sdListen, buff, 4, 0, (struct sockaddr *)&sin, &sin_size);
-        _d("%c %c %c %c\n", buff[0], buff[1], buff[2], buff[3]);
+        rd = recvfrom(m_sdRecv, buff, sizeof(buff), 0, (struct sockaddr *)&sin, &sin_size);
+        if ( rd < 1 ) {
+            usleep(100);
+            continue;
+        }
+        sendto(m_sdRecv, buff, sizeof(buff), 0, (struct sockaddr *)&sin, sin_size);
+
+#if 0
+        if ( m_bIsRunning ) {
+            continue;
+            usleep(1000);
+        }
+#endif
+        _d("%c %c %d %d\n", buff[0], buff[1], buff[2], buff[3]);
         if (buff[0] == 'T' && buff[1] == 'N')
         {
             if (buff[2] == 0x00)
@@ -104,16 +153,25 @@ void CCommMgr::Run()
                     if (m_bIsRunning)
                     {
                         //실행 중이어야 배속 재생이 됨
-                        for (int i = 0; i < MAX_NUM_CHANNEL; i++)
+                        m_nSpeed = m_nSpeed * 2; // 1 -> 2 -> 4 -> 8-> 16
+                        for (int i = 0; i < m_nChannel; i++)
                         {
                             //일단 2배속
-                            m_CSender[i]->SetSpeed(2);
+                            m_CSender[i]->SetSpeed(m_nSpeed);
                         }
                     }
                 }
+                else if ( buff[3] == 0x04) {
+                    if ( m_nSpeed > 1 ) {
+                        m_nSpeed = m_nSpeed / 2;
+                        for(int i=0;i < m_nChannel; i++) {
+                            m_CSender[i]->SetSpeed(m_nSpeed);
+                        }
+                    } else {
+                        cout << "[COMM] 스피드를 내릴 수 없음" << endl;
+                    }
+                }
             }
-            sendto(m_sdListen, buff, 4, 0, (struct sockaddr *)&sin, sin_size);
-            cout << "ip : " << inet_ntoa(sin.sin_addr) << " send message : " << buff[0] << buff[1] << buff[2] << buff[3] << endl;
         }
         else
         {
@@ -123,11 +181,35 @@ void CCommMgr::Run()
     _d("[CMGR] exit loop\n");
 }
 
+bool CCommMgr::TX(char *buff) {
+    if ( m_sdSend < 0 ) {
+        cout << "[COMM] send socket not created" << endl;
+        return false;
+    }
+
+    struct sockaddr_in sin;
+    socklen_t sin_size = sizeof(sin);
+
+    sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = inet_addr(m_attr["uep_sender_ip"].asString().c_str());
+    sin.sin_port = m_nPort;
+
+    sendto(m_sdRecv, buff, sizeof(buff), 0, (struct sockaddr *)&sin, sin_size);
+    cout << "ip : " << inet_ntoa(sin.sin_addr) << " send message : " << buff[0] << buff[1] << buff[2] << buff[3] << endl;
+}
+
+void CCommMgr::Run()
+{
+    RX();
+}
+
 void CCommMgr::Delete()
 {
+    cout << "[COMM] open channel count : " << m_nChannel << endl;
     for (int i = 0; i < m_nChannel; i++)
     {
         SAFE_DELETE(m_CSender[i]);
+        cout << "[COMM] channel " << i << " has been SAFE_DELETE" << endl;
     }
 }
 

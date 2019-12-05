@@ -15,7 +15,7 @@ public:
 	int ReadSocket(uint8_t *buffer, unsigned bufferSize);
 	bool Create(Json::Value info, Json::Value attr, int nChannel);
 	void Delete();
-	bool SetSpeed(int speed) { m_nSpeed = speed; }
+	void SetSpeed(int speed);
 	int GetSpeed() { return m_nSpeed; }
 
 	bool SetMutex(pthread_mutex_t *mutex_sender);
@@ -29,7 +29,6 @@ public:
 	int Demux(string src_filename);
 
 protected:
-	int m_nSpeed;
 	int m_nChannel;		// 현재 채널 넘버
 	Json::Value m_info; // 채널 정보 json
 	Json::Value m_attr; // 채널 공유 속성 attribute
@@ -38,7 +37,6 @@ protected:
 	int m_nRead;
 	int m_nWrite;
 
-	pthread_mutex_t *m_mutex_sender;
 
 private:
 	//mux_cfg_s m_mux_cfg;
@@ -58,6 +56,9 @@ private:
 	string m_filename;
 
 	Json::Value json;
+
+	pthread_mutex_t *m_mutex_sender;
+	int m_nSpeed;
 
 	CTSMuxer *m_pMuxer;
 	CMyPacketPool *m_pPktPool;

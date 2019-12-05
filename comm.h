@@ -28,22 +28,6 @@ protected:
     int SS(char *pBuff, int nLen);
 };
 
-class CCommCt : public CCommBase, public PThread
-{
-public:
-    CCommCt();
-    ~CCommCt();
-
-    void Create(int sd, char *pIpAddr);
-
-protected:
-    char m_strIpAddr[32]; // IP address of client
-
-protected:
-    void Run();
-    void OnTerminate(){};
-};
-
 class CCommMgr : public PThread
 {
 public:
@@ -51,20 +35,29 @@ public:
     ~CCommMgr();
 
     bool Open(int nPort, Json::Value attr);
+    bool Echo(char *buf);
 
 protected:
     void Run();
     void OnTerminate(){};
     void Delete();
+    bool SetSocket();
+    bool RX();
+    bool TX(char* buff);
 
 protected:
     int m_nPort;
-    int m_sdListen;
+    int m_sdRecv;
+    int m_sdSend;
     int m_nChannel;
     bool m_bIsRunning;
+    struct sockaddr_in m_sin;
     Json::Value m_attr;
     CSender *m_CSender[MAX_NUM_CHANNEL];
     pthread_mutex_t m_mutex_comm;
+
+private:
+    int m_nSpeed;
 
 protected:
     //CCommCt *m_pCt[MAX_NUM_SIM_CLIENT];

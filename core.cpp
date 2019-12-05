@@ -9,24 +9,22 @@ using namespace std;
 CCore::CCore(void)
 {
 	m_bExit = false;
-	pthread_mutex_init(&m_mutex_trap, 0);
+	pthread_mutex_init(&m_mutex_core, 0);
 }
 
 CCore::~CCore(void)
 {
 	m_bExit = true;
-
+	pthread_mutex_destroy(&m_mutex_core);
 	_d("[CORE] Trying to exit thread\n");
 	Delete();
+    cout << "[CORE] Before Terminate()" << endl;
 	Terminate();
-	_d("[CORE] Exited...\n");
-
-	pthread_mutex_destroy(&m_mutex_trap);
+	cout << "[CORE] has been exited..." << endl;
 }
 
 bool CCore::Create()
 {
-
 	m_nChannel = 0;
 
 	ifstream ifs("./setting.json", ifstream::binary);
@@ -72,12 +70,17 @@ bool CCore::Create()
 				m_nChannel++;
 			}
 #endif
+            //make core thread
+            cout << "[CORE] Before Thread start" << endl;
+            Start();
+            usleep(100000);
 			m_comm = new CCommMgr();
 			m_comm->Open(attr["udp_sender_port"].asInt(), attr);
+            //char data[6] = "TN01";
+            //m_comm->Echo(data);
 		}
 	}
 
-	Start();
 	return true;
 }
 
@@ -88,10 +91,8 @@ void CCore::Run()
 #if __DEBUG
 		cout << "[CORE] Thread is alive" << endl;
 #endif
-		sleep(1);
+		usleep(100000);
 	}
-	Delete();
-	_d("[CORE] Thread has been exited\n");
 }
 #if 0
 bool CCore::GetOutputs(string basepath) {

@@ -17,7 +17,7 @@ public:
 	//bool GetOutputs(string basepath);
 
 protected:
-	pthread_mutex_t m_mutex_trap;
+	pthread_mutex_t m_mutex_core;
 
 private:
 	int m_nChannel;

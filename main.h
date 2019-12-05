@@ -49,6 +49,7 @@ extern "C"
 }
 
 #define __DEBUG 0
+#define __DUMP 0
 
 #include "misc.h"
 
