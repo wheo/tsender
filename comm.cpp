@@ -14,11 +14,13 @@ CCommMgr::~CCommMgr()
     pthread_mutex_destroy(&m_mutex_comm);
     cout << "[COMM] Trying to exit thread" << endl;
     Delete();
-    if ( m_sdRecv > 0 ) {
+    if (m_sdRecv > 0)
+    {
         close(m_sdRecv);
         cout << "[COMM] RECV socket(" << m_sdRecv << ") has been closed" << endl;
     }
-    if ( m_sdSend > 0 ) {
+    if (m_sdSend > 0)
+    {
         close(m_sdSend);
         cout << "[COMM] SEND socket(" << m_sdSend << ") has been closed" << endl;
     }
@@ -27,7 +29,8 @@ CCommMgr::~CCommMgr()
     cout << "[COMM] Exited..." << endl;
 }
 
-bool CCommMgr::SetSocket() {
+bool CCommMgr::SetSocket()
+{
     int t = 1;
     struct sockaddr_in sin;
 
@@ -51,17 +54,18 @@ bool CCommMgr::SetSocket() {
         return false;
     }
 
-	struct timeval read_timeout;
-	read_timeout.tv_sec = 1;
-	read_timeout.tv_usec = 0;
-	if (setsockopt(m_sdRecv, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout)) < 0)
-	{
-		cout << "[COMM] set timeout error" << endl;
-		return false;
-	}
+    struct timeval read_timeout;
+    read_timeout.tv_sec = 1;
+    read_timeout.tv_usec = 0;
+    if (setsockopt(m_sdRecv, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout)) < 0)
+    {
+        cout << "[COMM] set timeout error" << endl;
+        return false;
+    }
 
     m_sdSend = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
-    if ( m_sdSend < 0 ) {
+    if (m_sdSend < 0)
+    {
         _d("[COMM] failed to open tx socket\n");
     }
     return EXIT_SUCCESS;
@@ -82,7 +86,8 @@ bool CCommMgr::Open(int nPort, Json::Value attr)
     return true;
 }
 
-bool CCommMgr::RX() {
+bool CCommMgr::RX()
+{
     char buff[5];
     int rd = 0;
 
@@ -95,8 +100,9 @@ bool CCommMgr::RX() {
     while (!m_bExit)
     {
         rd = recvfrom(m_sdRecv, buff, sizeof(buff), 0, (struct sockaddr *)&sin, &sin_size);
-        if ( rd < 1 ) {
-            usleep(100);
+        if (rd < 1)
+        {
+            usleep(10);
             continue;
         }
         sendto(m_sdRecv, buff, sizeof(buff), 0, (struct sockaddr *)&sin, sin_size);
@@ -107,14 +113,13 @@ bool CCommMgr::RX() {
             usleep(1000);
         }
 #endif
-        _d("%c %c %d %d\n", buff[0], buff[1], buff[2], buff[3]);
+        _d("%c %c %c %c\n", buff[0], buff[1], buff[2], buff[3]);
         if (buff[0] == 'T' && buff[1] == 'N')
         {
             if (buff[2] == 0x00)
             {
                 if (buff[3] == 0x01)
                 {
-                    _d("tn01 실행\n");
                     if (!m_bIsRunning)
                     {
                         m_bIsRunning = true;
@@ -134,7 +139,6 @@ bool CCommMgr::RX() {
                 }
                 else if (buff[3] == 0x02)
                 {
-                    _d("tn02 실행\n");
                     if (m_bIsRunning)
                     {
                         Delete();
@@ -161,13 +165,18 @@ bool CCommMgr::RX() {
                         }
                     }
                 }
-                else if ( buff[3] == 0x04) {
-                    if ( m_nSpeed > 1 ) {
+                else if (buff[3] == 0x04)
+                {
+                    if (m_nSpeed > 1)
+                    {
                         m_nSpeed = m_nSpeed / 2;
-                        for(int i=0;i < m_nChannel; i++) {
+                        for (int i = 0; i < m_nChannel; i++)
+                        {
                             m_CSender[i]->SetSpeed(m_nSpeed);
                         }
-                    } else {
+                    }
+                    else
+                    {
                         cout << "[COMM] 스피드를 내릴 수 없음" << endl;
                     }
                 }
@@ -181,8 +190,10 @@ bool CCommMgr::RX() {
     _d("[CMGR] exit loop\n");
 }
 
-bool CCommMgr::TX(char *buff) {
-    if ( m_sdSend < 0 ) {
+bool CCommMgr::TX(char *buff)
+{
+    if (m_sdSend < 0)
+    {
         cout << "[COMM] send socket not created" << endl;
         return false;
     }

@@ -37,10 +37,11 @@ bool CSender::Create(Json::Value info, Json::Value attr, int nChannel)
 	m_file_idx = 0;
 	m_nSpeed = 1;
 
-	if( SetSocket() ) {
-        cout << "[SENDER.ch" << m_nChannel << "] SetSocket is completed" << endl;
-        Start();
-    }
+	if (SetSocket())
+	{
+		cout << "[SENDER.ch" << m_nChannel << "] SetSocket is completed" << endl;
+		Start();
+	}
 
 	return true;
 }
@@ -63,7 +64,7 @@ bool CSender::SetSocket()
 	m_mcast_group.sin_port = htons(m_info["port"].asInt());
 	m_mcast_group.sin_addr.s_addr = inet_addr(m_info["ip"].asString().c_str());
 
-    cout << "[SENDER.ch"<< m_nChannel << "] ip : " << m_info["ip"].asString() << ", port : " << m_info["port"].asInt() << endl;
+	cout << "[SENDER.ch" << m_nChannel << "] ip : " << m_info["ip"].asString() << ", port : " << m_info["port"].asInt() << endl;
 
 	m_sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if (-1 == m_sock)
@@ -90,7 +91,8 @@ bool CSender::SetSocket()
 	state = setsockopt(m_sock, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
 	if (state < 0)
 	{
-		cout << "[SENDER.ch"<< m_nChannel << "] Setting IP_MULTICAST_TTL error" << endl;;
+		cout << "[SENDER.ch" << m_nChannel << "] Setting IP_MULTICAST_TTL error" << endl;
+		;
 		return false;
 	}
 
@@ -112,20 +114,11 @@ bool CSender::SetSocket()
 		return false;
 	}
 
-    return true;
+	return true;
 }
 
 void CSender::Run()
 {
-	//m_pMuxer = new CTSMuxer();
-	//m_pPktPool = new CMyPacketPool();
-
-#if __DEBUG
-	cout << "[ch." << m_nChannel << "] : " << m_info["ip"].asString() << endl;
-	cout << "[ch." << m_nChannel << "] : " << m_info["port"].asInt() << endl;
-	cout << "[ch." << m_nChannel << "] : " << m_info["fps"].asDouble() << endl;
-#endif
-
 	while (!m_bExit)
 	{
 		if (!Send())
@@ -137,10 +130,8 @@ void CSender::Run()
 			// cout << "[SENDER.ch" << m_nChannel << "] sender loop completed" << endl;
 			// send() eturn true
 		}
-		usleep(1000000);
+		usleep(100);
 	}
-	//SAFE_DELETE(m_pMuxer);
-	//SAFE_DELETE(m_pPktPool);
 }
 
 bool CSender::GetOutputs(string basepath)
@@ -195,27 +186,28 @@ bool CSender::GetChannelFiles(string path)
 		if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0)
 		{
 			if (ent->d_type != DT_DIR)
-            {
-                string fn = ent->d_name;
-                if ( fn.substr(fn.find_last_of(".") + 1) == "es") {
-                    cout << "channel : " << m_nChannel << ", path : " << path << "/" << ent->d_name << endl;
-                    ss << path << "/" << ent->d_name;
-                    Demux(ss.str());
-                    ss.str("");
-                }
+			{
+				string fn = ent->d_name;
+				if (fn.substr(fn.find_last_of(".") + 1) == "es")
+				{
+					cout << "channel : " << m_nChannel << ", path : " << path << "/" << ent->d_name << endl;
+					ss << path << "/" << ent->d_name;
+					Demux(ss.str());
+					ss.str("");
+				}
 			}
 		}
 	}
-    closedir(dir);
+	closedir(dir);
 	return EXIT_SUCCESS;
 }
 
 bool CSender::Send()
 {
-    //cout << "[SENDER.ch" << m_nChannel << "] Send() Alive" << endl;
-    GetOutputs(m_attr["file_dst"].asString());
-    //cout << "[SENDER.ch" << m_nChannel << "] one loop completed" << endl;
-    usleep(1000);
+	//cout << "[SENDER.ch" << m_nChannel << "] Send() Alive" << endl;
+	GetOutputs(m_attr["file_dst"].asString());
+	//cout << "[SENDER.ch" << m_nChannel << "] one loop completed" << endl;
+	usleep(1000);
 
 	return true;
 }
@@ -269,7 +261,10 @@ int CSender::Demux(string src_filename)
 #endif
 
 	double fTime = m_info["fps"].asDouble();
+	double num = m_info["num"].asDouble();
+	double den = m_info["den"].asDouble();
 	long long wait_until;
+	cout << fTime << ", " << num << ", " << den << endl;
 
 	high_resolution_clock::time_point begin = high_resolution_clock::now();
 	while (!m_bExit)
@@ -294,11 +289,14 @@ int CSender::Demux(string src_filename)
 			begin = end;
 		}
 #endif
-        if ( !send_bitstream(pkt.data, pkt.size) ) {
-            cout << "[SENDER.ch" << m_nChannel << "] send_bitstream failed" << endl;
-        }
+		if (!send_bitstream(pkt.data, pkt.size))
+		{
+			cout << "[SENDER.ch" << m_nChannel << "] send_bitstream failed" << endl;
+		}
 		av_packet_unref(&pkt);
-        int sleep_time = 33333 / m_nSpeed;
+		double sleep_time = (num / den) * 1000000 / m_nSpeed;
+		//int sleep_time = sleep_time_d;
+		cout << "[SENDER.ch" << m_nChannel << " ] num : " << num << ", den : " << den << ", time : " << sleep_time << endl;
 		usleep(sleep_time);
 	}
 #if __DUMP
@@ -372,9 +370,10 @@ bool CSender::send_bitstream(uint8_t *stream, int size)
 	return true;
 }
 
-void CSender::SetSpeed(int speed) {
-    m_nSpeed = speed;
-    cout << "[SENDER.ch" << m_nChannel << "] Set speed : " << m_nSpeed << endl;
+void CSender::SetSpeed(int speed)
+{
+	m_nSpeed = speed;
+	cout << "[SENDER.ch" << m_nChannel << "] Set speed : " << m_nSpeed << endl;
 }
 #if 0
 int CSender::open_codec_context(int *stream_idx, AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type)
