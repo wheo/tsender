@@ -24,7 +24,7 @@ CCommMgr::~CCommMgr()
         close(m_sdSend);
         cout << "[COMM] SEND socket(" << m_sdSend << ") has been closed" << endl;
     }
-    cout << "[COMM] before Terminate()" << endl;
+    //cout << "[COMM] before Terminate()" << endl;
     Terminate();
     cout << "[COMM] Exited..." << endl;
 }
@@ -67,8 +67,9 @@ bool CCommMgr::SetSocket()
     if (m_sdSend < 0)
     {
         _d("[COMM] failed to open tx socket\n");
+        return false;
     }
-    return EXIT_SUCCESS;
+    return true;
 }
 
 bool CCommMgr::Open(int nPort, Json::Value attr)
@@ -79,11 +80,20 @@ bool CCommMgr::Open(int nPort, Json::Value attr)
     m_nPort = nPort;
     m_attr = attr;
 
-    SetSocket();
-    cout << "[COMM] Before Thread Start" << endl;
+    if (!SetSocket())
+    {
+        cout << "[COMM] SetSocket is failed" << endl;
+        return false;
+    }
+    //cout << "[COMM] Before Thread Start" << endl;
     Start();
 
     return true;
+}
+
+void CCommMgr::Run()
+{
+    RX();
 }
 
 bool CCommMgr::RX()
@@ -95,7 +105,7 @@ bool CCommMgr::RX()
 
     socklen_t sin_size = sizeof(sin);
 
-    cout << "[COMM] udp RX ready (port) : " << m_nPort << endl;
+    cout << "[COMM] udp RX ready (" << m_nPort << ")" << endl;
 
     while (!m_bExit)
     {
@@ -105,7 +115,8 @@ bool CCommMgr::RX()
             usleep(10);
             continue;
         }
-        sendto(m_sdRecv, buff, sizeof(buff), 0, (struct sockaddr *)&sin, sin_size);
+        //sendto(m_sdRecv, buff, sizeof(buff), 0, (struct sockaddr *)&sin, sin_size);
+        TX(buff);
 
 #if 0
         if ( m_bIsRunning ) {
@@ -113,7 +124,7 @@ bool CCommMgr::RX()
             usleep(1000);
         }
 #endif
-        _d("%c %c %c %c\n", buff[0], buff[1], buff[2], buff[3]);
+        _d("[COMM] buff : %c %c %d %d\n", buff[0], buff[1], buff[2], buff[3]);
         if (buff[0] == 'T' && buff[1] == 'N')
         {
             if (buff[2] == 0x00)
@@ -134,7 +145,7 @@ bool CCommMgr::RX()
                     }
                     else
                     {
-                        cout << "[COMM] 실행 중" << endl;
+                        cout << "[COMM] is running" << endl;
                     }
                 }
                 else if (buff[3] == 0x02)
@@ -142,13 +153,13 @@ bool CCommMgr::RX()
                     if (m_bIsRunning)
                     {
                         Delete();
-                        _d("[COMM] Sender 종료\n");
+                        cout << "[COMM] sender is deleted" << endl;
                         m_nChannel = 0;
                         m_bIsRunning = false;
                     }
                     else
                     {
-                        _d("[COMM] 실행 중이 아닙니다.\n");
+                        cout << "[COMM] is not running" << endl;
                     }
                 }
                 else if (buff[3] == 0x03)
@@ -177,7 +188,7 @@ bool CCommMgr::RX()
                     }
                     else
                     {
-                        cout << "[COMM] 스피드를 내릴 수 없음" << endl;
+                        cout << "[COMM] Cannot speed down" << endl;
                     }
                 }
             }
@@ -202,16 +213,13 @@ bool CCommMgr::TX(char *buff)
     socklen_t sin_size = sizeof(sin);
 
     sin.sin_family = AF_INET;
-    sin.sin_addr.s_addr = inet_addr(m_attr["uep_sender_ip"].asString().c_str());
-    sin.sin_port = m_nPort;
+    sin.sin_addr.s_addr = inet_addr(m_attr["udp_target_ip"].asString().c_str());
+    sin.sin_port = htons(m_attr["udp_target_ip"].asInt());
 
-    sendto(m_sdRecv, buff, sizeof(buff), 0, (struct sockaddr *)&sin, sin_size);
-    cout << "ip : " << inet_ntoa(sin.sin_addr) << " send message : " << buff[0] << buff[1] << buff[2] << buff[3] << endl;
-}
+    cout << "buff size : " << sizeof(buff) << endl;
 
-void CCommMgr::Run()
-{
-    RX();
+    sendto(m_sdSend, buff, sizeof(buff), 0, (struct sockaddr *)&sin, sin_size);
+    cout << "[COMM] ip : " << inet_ntoa(sin.sin_addr) << " port : " << m_attr["udp_recv_port"].asInt() << ", send message : " << buff[0] << buff[1] << buff[2] << buff[3] << endl;
 }
 
 void CCommMgr::Delete()

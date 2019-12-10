@@ -188,10 +188,15 @@ bool CSender::GetChannelFiles(string path)
 			if (ent->d_type != DT_DIR)
 			{
 				string fn = ent->d_name;
-				if (fn.substr(fn.find_last_of(".") + 1) == "es")
+				if (fn.substr(fn.find_last_of(".") + 1) == "es" || fn.substr(fn.find_last_of(".") + 1) == "audio")
 				{
 					cout << "channel : " << m_nChannel << ", path : " << path << "/" << ent->d_name << endl;
 					ss << path << "/" << ent->d_name;
+					if (getFilesize(ss.str().c_str()) == 0)
+					{
+						cout << "[SENDER] " << ss.str() << " size is 0" << endl;
+						continue;
+					}
 					Demux(ss.str());
 					ss.str("");
 				}
@@ -218,7 +223,7 @@ int CSender::Demux(string src_filename)
 	string channel;
 	string index = to_string(m_index);
 	channel = to_string(m_nChannel);
-	string es2_name = "./" + channel + "_" + index + ".264";
+	string es2_name = "./" + channel + "_" + index + ".es";
 	cout << "es_name : " << es2_name << endl;
 #endif
 	m_index++;
@@ -259,27 +264,28 @@ int CSender::Demux(string src_filename)
 	m_pkt.data = NULL;
 	m_pkt.size = 0;
 #endif
-
 	double fTime = m_info["fps"].asDouble();
 	double num = m_info["num"].asDouble();
 	double den = m_info["den"].asDouble();
 	long long wait_until;
-	cout << fTime << ", " << num << ", " << den << endl;
+	cout << "[SENDER.ch" << m_nChannel << "] " << fTime << ", " << num << ", " << den << ", type : " << m_attr["type"].asString() << endl;
 
 	high_resolution_clock::time_point begin = high_resolution_clock::now();
 	while (!m_bExit)
 	{
-		AVPacket pkt;
-		av_init_packet(&pkt);
-		if (av_read_frame(fmt_ctx, &pkt) < 0)
+		if (m_attr["type"].asString() == "video")
 		{
-			cout << "[SENDER.ch" << m_nChannel << "] meet EOF" << endl;
-			break;
-		}
+			AVPacket pkt;
+			av_init_packet(&pkt);
+			if (av_read_frame(fmt_ctx, &pkt) < 0)
+			{
+				cout << "[SENDER.ch" << m_nChannel << "] meet EOF" << endl;
+				break;
+			}
 
-		high_resolution_clock::time_point end = high_resolution_clock::now();
-		int64_t tick_diff = duration_cast<microseconds>(end - begin).count();
-		//cout << "tick-diff : " << tick_diff << " ";
+			high_resolution_clock::time_point end = high_resolution_clock::now();
+			int64_t tick_diff = duration_cast<microseconds>(end - begin).count();
+			//cout << "tick-diff : " << tick_diff << " ";
 #if 0
 		av_bsf_send_packet(m_bsfc, &pkt);
 
@@ -289,11 +295,16 @@ int CSender::Demux(string src_filename)
 			begin = end;
 		}
 #endif
-		if (!send_bitstream(pkt.data, pkt.size))
-		{
-			cout << "[SENDER.ch" << m_nChannel << "] send_bitstream failed" << endl;
+			if (!send_bitstream(pkt.data, pkt.size))
+			{
+				cout << "[SENDER.ch" << m_nChannel << "] send_bitstream failed" << endl;
+			}
+			av_packet_unref(&pkt);
 		}
-		av_packet_unref(&pkt);
+		else if (m_attr["type"].asString() == "audio")
+		{
+			//
+		}
 		double sleep_time = (num / den) * 1000000 / m_nSpeed;
 		//int sleep_time = sleep_time_d;
 		cout << "[SENDER.ch" << m_nChannel << " ] num : " << num << ", den : " << den << ", time : " << sleep_time << endl;

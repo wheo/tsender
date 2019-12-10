@@ -6,13 +6,28 @@
 using namespace std;
 using namespace chrono;
 
-#define MAX_WIDTH	1920
-#define MAX_HEIGHT	1080
+#define MAX_WIDTH 1920
+#define MAX_HEIGHT 1080
 
 /** some MACROs */
-//#define SAFE_DELETE(x) if (x) {delete x; }; x = NULL;
-#define SAFE_RELEASE(x) if (x) { x->Release();}; x = NULL;
-#define SAFE_FCLOSE(x) if (x) { fclose(x); } x = NULL;
+#define SAFE_DELETE(x) \
+	if (x)             \
+	{                  \
+		delete x;      \
+	};                 \
+	x = NULL;
+#define SAFE_RELEASE(x) \
+	if (x)              \
+	{                   \
+		x->Release();   \
+	};                  \
+	x = NULL;
+#define SAFE_FCLOSE(x) \
+	if (x)             \
+	{                  \
+		fclose(x);     \
+	}                  \
+	x = NULL;
 
 #define rnd(x, digit) (floor((x)*pow(float(10), digit) + 0.5f) / pow(float(10), digit));
 
@@ -32,10 +47,14 @@ protected:
 };
 
 /** Thread class */
-enum MT_STATE {
-	mtReady, mtRunning, mtTerminated, mtZombie, mtAborted
+enum MT_STATE
+{
+	mtReady,
+	mtRunning,
+	mtTerminated,
+	mtZombie,
+	mtAborted
 };
-
 
 class CWorkingTime
 {
@@ -94,7 +113,7 @@ protected:
 };
 #endif
 
-#define MAX_NUM_OF_PACKETS			65536
+#define MAX_NUM_OF_PACKETS 65536
 class CMyPacketPool
 {
 public:
@@ -112,11 +131,10 @@ public:
 	void Ret(AVPacket *pp);
 
 protected:
-
-	AVPacket	*m_pPkt[MAX_NUM_OF_PACKETS];
+	AVPacket *m_pPkt[MAX_NUM_OF_PACKETS];
 	//AVPacket	m_pkt[MAX_NUM_OF_PACKETS];
 
-	int			m_nRemain;
+	int m_nRemain;
 
 	int m_nRead;
 	int m_nWrite;

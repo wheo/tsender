@@ -13,6 +13,12 @@ std::string get_current_time_and_date()
 	return ss.str();
 }
 
+std::ifstream::pos_type getFilesize(const char *filename)
+{
+	std::ifstream in(filename, std::ifstream::ate | std::ifstream::binary);
+	return in.tellg();
+}
+
 double rnd(double x, int digit)
 {
 	return (floor((x)*pow(float(10), digit) + 0.5f) / pow(float(10), digit));
@@ -60,7 +66,7 @@ int PThread::Start()
 	m_bExit = false;
 	if ((pthread_create(&m_nID, NULL, StartPoint, reinterpret_cast<void *>(this))) == 0)
 	{
-        _d("[MISC] Thread Create : %d, m_eExitType : %d\n", m_nID, m_eExitType);
+		//_d("[MISC] Thread Create : %d, m_eExitType : %d\n", m_nID, m_eExitType);
 		if (m_eExitType == eDETACHABLE)
 		{
 			pthread_detach(m_nID);
@@ -97,7 +103,7 @@ void *PThread::StartPoint(void *a_pParam)
 
 void PThread::Terminate()
 {
-    _d("[MISC] m_eState : %d\n", m_eState);
+	//_d("[MISC] m_eState : %d\n", m_eState);
 	if (m_eState == eRUNNING)
 	{
 		m_bExit = true;
@@ -120,7 +126,7 @@ void PThread::Terminate()
 // this function will be blocked until the StartPoint terminates
 void PThread::Join(pthread_t a_nID)
 {
-    _d("[MISC] Try to join : %d\n",a_nID);
+	//_d("[MISC] Try to join : %d\n", a_nID);
 	if (!pthread_join(a_nID, NULL))
 	{
 		SetState(eTERMINATED);

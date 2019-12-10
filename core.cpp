@@ -18,7 +18,7 @@ CCore::~CCore(void)
 	pthread_mutex_destroy(&m_mutex_core);
 	_d("[CORE] Trying to exit thread\n");
 	Delete();
-    cout << "[CORE] Before Terminate()" << endl;
+	cout << "[CORE] Before Terminate()" << endl;
 	Terminate();
 	cout << "[CORE] has been exited..." << endl;
 }
@@ -42,7 +42,7 @@ bool CCore::Create()
 			ifs.close();
 			_d("Failed to parse setting.json configuration\n%s\n", m_reader.getFormatedErrorMessages().c_str());
 			_d("[CORE.ch%d] Exit code\n");
-			exit(1);
+			exit(EXIT_FAILURE);
 		}
 		else
 		{
@@ -60,8 +60,8 @@ bool CCore::Create()
 			sstm << "mkdir -p " << m_root["file_dst"].asString();
 			system(sstm.str().c_str());
 
-			cout << "version : " << attr["version"].asString() << endl;
-			cout << "file_dst : " << attr["file_dst"].asString() << endl;
+			cout << "[CORE] version : " << attr["version"].asString() << endl;
+			cout << "[CORE] file_dst : " << attr["file_dst"].asString() << endl;
 #if 0
 			for (auto &value : m_root["output_channels"])
 			{
@@ -70,14 +70,17 @@ bool CCore::Create()
 				m_nChannel++;
 			}
 #endif
-            //make core thread
-            cout << "[CORE] Before Thread start" << endl;
-            Start();
-            usleep(100000);
+			//make core thread
+			//cout << "[CORE] Before Thread start" << endl;
+			Start();
+			//usleep(100000);
 			m_comm = new CCommMgr();
-			m_comm->Open(attr["udp_sender_port"].asInt(), attr);
-            //char data[6] = "TN01";
-            //m_comm->Echo(data);
+			if (!m_comm->Open(attr["udp_sender_port"].asInt(), attr))
+			{
+				exit(EXIT_FAILURE);
+			}
+			//char data[6] = "TN01";
+			//m_comm->Echo(data);
 		}
 	}
 
