@@ -39,7 +39,7 @@ bool CSender::Create(Json::Value info, Json::Value attr, int nChannel)
 
 	if (SetSocket())
 	{
-		cout << "[SENDER.ch" << m_nChannel << "] SetSocket is completed" << endl;
+		cout << "[SENDER.ch" << m_nChannel << "] SetSocket config is completed" << endl;
 		Start();
 	}
 
@@ -130,8 +130,178 @@ void CSender::Run()
 			// cout << "[SENDER.ch" << m_nChannel << "] sender loop completed" << endl;
 			// send() eturn true
 		}
-		usleep(100);
+		//usleep(100);
 	}
+}
+
+bool CSender::Send()
+{
+	//cout << "[SENDER.ch" << m_nChannel << "] Send() Alive" << endl;
+	//GetOutputs(m_attr["file_dst"].asString());
+	stringstream sstm;
+	sstm.str("");
+	sstm << m_attr["file_dst"].asString() << "/" << m_attr["target"].asString() << "/" << m_nChannel;
+	cout << "[SENDER.ch" << m_nChannel << "] target : " << sstm.str() << endl;
+	if (!GetChannelFiles(sstm.str()))
+	{
+		m_bExit = true;
+		// 자원회수는 나중에
+	}
+
+	//cout << "[SENDER.ch" << m_nChannel << "] one loop completed" << endl;
+	//usleep(1000);
+
+	return true;
+}
+
+int CSender::Demux(string src_filename)
+{
+#if __DUMP
+	string channel;
+	string index = to_string(m_index);
+	channel = to_string(m_nChannel);
+	string es2_name = "./" + channel + "_" + index + ".es";
+	cout << "es_name : " << es2_name << endl;
+#endif
+	m_index++;
+
+#if __DUMP
+	FILE *es2 = fopen(es2_name.c_str(), "wb");
+#endif
+
+	ifstream ifs;
+
+	if (m_attr["type"].asString() == "video")
+	{
+		if (avformat_open_input(&fmt_ctx, src_filename.c_str(), NULL, NULL) < 0)
+		{
+			fprintf(stderr, "[SENDER] Could not open source file %s\n", src_filename.c_str());
+			return EXIT_FAILURE;
+		}
+		else
+		{
+			cout << "[SENDER.ch" << m_nChannel << "] " << src_filename << " file is opened" << endl;
+		}
+
+		m_bsf = av_bsf_get_by_name("hevc_mp4toannexb");
+
+		if (av_bsf_alloc(m_bsf, &m_bsfc) < 0)
+		{
+			_d("Failed to alloc bsfc\n");
+		}
+		if (avcodec_parameters_copy(m_bsfc->par_in, fmt_ctx->streams[0]->codecpar) < 0)
+		{
+			_d("Failed to copy codec param.\n");
+		}
+		m_bsfc->time_base_in = fmt_ctx->streams[0]->time_base;
+
+		if (av_bsf_init(m_bsfc) < 0)
+		{
+			_d("Failed to init bsfc\n");
+		}
+	}
+	else if (m_attr["type"].asString() == "audio")
+	{
+		// fileopen
+		ifs.open(src_filename, ios::in);
+		if (!ifs.is_open())
+		{
+			cout << "[SENDER.ch" << m_nChannel << "] " << src_filename << " file open failed" << endl;
+			return false;
+		}
+		else
+		{
+			//
+		}
+	}
+
+#if 0
+	av_init_packet(&m_pkt);
+	m_pkt.data = NULL;
+	m_pkt.size = 0;
+#endif
+	double fTime = m_info["fps"].asDouble();
+	double num = m_info["num"].asDouble();
+	double den = m_info["den"].asDouble();
+	double target_time = num / den * 1000000 / m_nSpeed;
+	int64_t acc_time = 0;
+	int64_t tick_diff = 0;
+	high_resolution_clock::time_point begin;
+	high_resolution_clock::time_point end;
+	cout << "[SENDER.ch" << m_nChannel << "] " << target_time << ", " << num << ", " << den << ", type : " << m_attr["type"].asString() << endl;
+
+	begin = high_resolution_clock::now();
+	while (!m_bExit)
+	{
+		if (m_attr["type"].asString() == "video")
+		{
+			AVPacket pkt;
+			av_init_packet(&pkt);
+			if (av_read_frame(fmt_ctx, &pkt) < 0)
+			{
+				cout << "[SENDER.ch" << m_nChannel << "] meet EOF" << endl;
+				avformat_close_input(&fmt_ctx);
+				break;
+			}
+
+			//end = high_resolution_clock::now();
+			//tick_diff = duration_cast<microseconds>(end - begin).count();
+#if 0
+		av_bsf_send_packet(m_bsfc, &pkt);
+
+		while (av_bsf_receive_packet(m_bsfc, &pkt) == 0)
+		{
+			send_bitstream(pkt.data, pkt.size);
+			begin = end;
+		}
+#endif
+			if (!send_bitstream(pkt.data, pkt.size))
+			{
+				cout << "[SENDER.ch" << m_nChannel << "] send_bitstream failed" << endl;
+			}
+			av_packet_unref(&pkt);
+		}
+		else if (m_attr["type"].asString() == "audio")
+		{
+			char audio_buf[AUDIO_BUFF_SIZE];
+			ifs.read(audio_buf, AUDIO_BUFF_SIZE);
+			//cout << hex << audio_buf << endl;
+			if (!send_audiostream(audio_buf, AUDIO_BUFF_SIZE))
+			{
+				cout << "[SENDER.ch" << m_nChannel << "] send_audiostream failed" << endl;
+			}
+
+			if (ifs.eof())
+			{
+				ifs.close();
+				cout << "[SENDER.ch" << m_nChannel << "] audio meet eof" << endl;
+				break;
+			}
+			//if meet eof then break
+		}
+
+		while (tick_diff < target_time)
+		{
+			//usleep(1); // 1000000 us = 1 sec
+			end = high_resolution_clock::now();
+			tick_diff = duration_cast<microseconds>(end - begin).count();
+			//cout << tick_diff << endl;
+			this_thread::sleep_for(microseconds(1));
+			//acc_time += tick_diff;
+			//begin = high_resolution_clock::now();
+		}
+		begin = end;
+		cout << "[SENDER.ch" << m_nChannel << "] num : " << num << ", den : " << den << ", target_time : " << target_time << ", tick_diff : " << tick_diff << endl;
+		tick_diff = 0;
+		//cout << "[SENDER.ch" << m_nChannel << "] num : " << num << ", den : " << den << ", target_time : " << target_time << ", tick_diff : " << tick_diff << endl;
+		//cout << tick_diff << ", acc_time : " << acc_time << endl;
+	}
+
+#if __DUMP
+	fclose(es2);
+#endif
+	cout << "[SENDER.ch" << m_nChannel << "] " << src_filename << " file is closed" << endl;
+	return true;
 }
 
 bool CSender::GetOutputs(string basepath)
@@ -176,10 +346,43 @@ bool CSender::GetOutputs(string basepath)
 
 bool CSender::GetChannelFiles(string path)
 {
+	if (!IsDirExist(path))
+	{
+		cout << "[SENDER.ch" << m_nChannel << "] " << path << " is not exist" << endl;
+		return false;
+	}
+
+	ifstream ifs(path + "/" + "meta.json");
+	if (!ifs.is_open())
+	{
+		//is not open or not exist
+		cout << "[SENDER.ch" << m_nChannel << "] " << path + "/" + "meta.json"
+			 << " is not exist" << endl;
+		return false;
+	}
+	else
+	{
+		Json::Reader reader;
+		Json::Value meta;
+		if (reader.parse(ifs, meta, true))
+		{
+			// parse success
+			ifs.close();
+			m_attr["type"] = meta["type"]; // video or audio
+		}
+		else
+		{
+			// parse failed
+			cout << "[SENDER.ch" << m_nChannel << "] " << path + "/" + "meta.json"
+				 << " parse failed" << endl;
+			ifs.close();
+			return false;
+		}
+	}
+
 	DIR *dir = opendir(path.c_str());
 	struct dirent *ent;
 	stringstream ss;
-	cout << "path : " << path << endl;
 
 	while ((ent = readdir(dir)) != NULL && !m_bExit)
 	{
@@ -190,132 +393,38 @@ bool CSender::GetChannelFiles(string path)
 				string fn = ent->d_name;
 				if (fn.substr(fn.find_last_of(".") + 1) == "es" || fn.substr(fn.find_last_of(".") + 1) == "audio")
 				{
-					cout << "channel : " << m_nChannel << ", path : " << path << "/" << ent->d_name << endl;
+					cout << "[SENDER.ch" << m_nChannel << "] path : " << path << "/" << ent->d_name << endl;
 					ss << path << "/" << ent->d_name;
 					if (getFilesize(ss.str().c_str()) == 0)
 					{
-						cout << "[SENDER] " << ss.str() << " size is 0" << endl;
+						cout << "[SENDER.ch" << m_nChannel << "] " << ss.str() << " size is 0" << endl;
 						continue;
 					}
-					Demux(ss.str());
+					if (Demux(ss.str()))
+					{
+						cout << "[SENDER.ch" << m_nChannel << "] " << ss.str() << " demux success" << endl;
+					}
 					ss.str("");
 				}
 			}
 		}
 	}
 	closedir(dir);
-	return EXIT_SUCCESS;
-}
-
-bool CSender::Send()
-{
-	//cout << "[SENDER.ch" << m_nChannel << "] Send() Alive" << endl;
-	GetOutputs(m_attr["file_dst"].asString());
-	//cout << "[SENDER.ch" << m_nChannel << "] one loop completed" << endl;
-	usleep(1000);
-
 	return true;
 }
 
-int CSender::Demux(string src_filename)
+bool CSender::send_audiostream(char *buff, int size)
 {
-#if __DUMP
-	string channel;
-	string index = to_string(m_index);
-	channel = to_string(m_nChannel);
-	string es2_name = "./" + channel + "_" + index + ".es";
-	cout << "es_name : " << es2_name << endl;
-#endif
-	m_index++;
-
-#if __DUMP
-	FILE *es2 = fopen(es2_name.c_str(), "wb");
-#endif
-
-	if (avformat_open_input(&fmt_ctx, src_filename.c_str(), NULL, NULL) < 0)
+	int nSendto = 0;
+	nSendto = sendto(m_sock, buff, size, 0, (struct sockaddr *)&m_mcast_group, sizeof(m_mcast_group));
+	if (nSendto > 0)
 	{
-		fprintf(stderr, "Could not open source file %s\n", src_filename.c_str());
-		return EXIT_FAILURE;
+		return true;
 	}
 	else
 	{
-		cout << "[SENDER.ch" << m_nChannel << "] " << src_filename << " file is opened" << endl;
+		return false;
 	}
-
-	m_bsf = av_bsf_get_by_name("hevc_mp4toannexb");
-
-	if (av_bsf_alloc(m_bsf, &m_bsfc) < 0)
-	{
-		_d("Failed to alloc bsfc\n");
-	}
-	if (avcodec_parameters_copy(m_bsfc->par_in, fmt_ctx->streams[0]->codecpar) < 0)
-	{
-		_d("Failed to copy codec param.\n");
-	}
-	m_bsfc->time_base_in = fmt_ctx->streams[0]->time_base;
-
-	if (av_bsf_init(m_bsfc) < 0)
-	{
-		_d("Failed to init bsfc\n");
-	}
-
-#if 0
-	av_init_packet(&m_pkt);
-	m_pkt.data = NULL;
-	m_pkt.size = 0;
-#endif
-	double fTime = m_info["fps"].asDouble();
-	double num = m_info["num"].asDouble();
-	double den = m_info["den"].asDouble();
-	long long wait_until;
-	cout << "[SENDER.ch" << m_nChannel << "] " << fTime << ", " << num << ", " << den << ", type : " << m_attr["type"].asString() << endl;
-
-	high_resolution_clock::time_point begin = high_resolution_clock::now();
-	while (!m_bExit)
-	{
-		if (m_attr["type"].asString() == "video")
-		{
-			AVPacket pkt;
-			av_init_packet(&pkt);
-			if (av_read_frame(fmt_ctx, &pkt) < 0)
-			{
-				cout << "[SENDER.ch" << m_nChannel << "] meet EOF" << endl;
-				break;
-			}
-
-			high_resolution_clock::time_point end = high_resolution_clock::now();
-			int64_t tick_diff = duration_cast<microseconds>(end - begin).count();
-			//cout << "tick-diff : " << tick_diff << " ";
-#if 0
-		av_bsf_send_packet(m_bsfc, &pkt);
-
-		while (av_bsf_receive_packet(m_bsfc, &pkt) == 0)
-		{
-			send_bitstream(pkt.data, pkt.size);
-			begin = end;
-		}
-#endif
-			if (!send_bitstream(pkt.data, pkt.size))
-			{
-				cout << "[SENDER.ch" << m_nChannel << "] send_bitstream failed" << endl;
-			}
-			av_packet_unref(&pkt);
-		}
-		else if (m_attr["type"].asString() == "audio")
-		{
-			//
-		}
-		double sleep_time = (num / den) * 1000000 / m_nSpeed;
-		//int sleep_time = sleep_time_d;
-		cout << "[SENDER.ch" << m_nChannel << " ] num : " << num << ", den : " << den << ", time : " << sleep_time << endl;
-		usleep(sleep_time);
-	}
-#if __DUMP
-	fclose(es2);
-#endif
-	avformat_close_input(&fmt_ctx);
-	cout << "[SENDER.ch" << m_nChannel << "] " << src_filename << " file is closed" << endl;
-	return EXIT_SUCCESS;
 }
 
 bool CSender::send_bitstream(uint8_t *stream, int size)

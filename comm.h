@@ -6,6 +6,7 @@
 
 #define MAX_NUM_SIM_CLIENT 64
 #define MAX_NUM_CHANNEL 6
+#define READ_SIZE 1500
 
 class CCommBase // Class for comm. module base
 {
@@ -43,7 +44,7 @@ protected:
     void Delete();
     bool SetSocket();
     bool RX();
-    bool TX(char* buff);
+    bool TX(char *buff, int size);
 
 protected:
     int m_nPort;

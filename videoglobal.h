@@ -1,10 +1,6 @@
 ﻿#pragma once
 
-#include <chrono>
 #include "main.h"
-
-using namespace std;
-using namespace chrono;
 
 #define MAX_WIDTH 1920
 #define MAX_HEIGHT 1080

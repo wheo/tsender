@@ -1,7 +1,5 @@
 #include "comm.h"
 
-using namespace std;
-
 CCommMgr::CCommMgr()
 {
     m_bExit = false;
@@ -98,7 +96,7 @@ void CCommMgr::Run()
 
 bool CCommMgr::RX()
 {
-    char buff[5];
+    char buff[READ_SIZE];
     int rd = 0;
 
     struct sockaddr_in sin;
@@ -107,8 +105,13 @@ bool CCommMgr::RX()
 
     cout << "[COMM] udp RX ready (" << m_nPort << ")" << endl;
 
+    Json::Reader reader;
+    Json::Value root;
+    stringstream sstm;
+
     while (!m_bExit)
     {
+        memset(buff, 0x00, sizeof(buff));
         rd = recvfrom(m_sdRecv, buff, sizeof(buff), 0, (struct sockaddr *)&sin, &sin_size);
         if (rd < 1)
         {
@@ -116,67 +119,68 @@ bool CCommMgr::RX()
             continue;
         }
         //sendto(m_sdRecv, buff, sizeof(buff), 0, (struct sockaddr *)&sin, sin_size);
-        TX(buff);
+        cout << "[COMM] recv size : " << rd << endl;
+        TX(buff, rd);
 
-#if 0
-        if ( m_bIsRunning ) {
-            continue;
-            usleep(1000);
-        }
-#endif
-        _d("[COMM] buff : %c %c %d %d\n", buff[0], buff[1], buff[2], buff[3]);
-        if (buff[0] == 'T' && buff[1] == 'N')
+        string strbuf;
+        strbuf = (char *)buff;
+
+        if (reader.parse(strbuf, root, true))
         {
-            if (buff[2] == 0x00)
+            //parse success
+            if (root["cmd"] == "play_start")
             {
-                if (buff[3] == 0x01)
+                //cout << root["info"]["target"].asString() << endl;
+
+                m_attr["target"] = root["info"]["target"].asString();
+                if (!m_bIsRunning)
                 {
-                    if (!m_bIsRunning)
+                    m_bIsRunning = true;
+                    m_nChannel = 0;
+                    for (auto &value : m_attr["output_channels"])
                     {
-                        m_bIsRunning = true;
-                        m_nChannel = 0;
-                        for (auto &value : m_attr["output_channels"])
-                        {
-                            m_CSender[m_nChannel] = new CSender();
-                            m_CSender[m_nChannel]->SetMutex(&m_mutex_comm);
-                            m_CSender[m_nChannel]->Create(m_attr["output_channels"][m_nChannel], m_attr, m_nChannel);
-                            m_nChannel++;
-                        }
-                    }
-                    else
-                    {
-                        cout << "[COMM] is running" << endl;
+                        m_CSender[m_nChannel] = new CSender();
+                        m_CSender[m_nChannel]->SetMutex(&m_mutex_comm);
+                        m_CSender[m_nChannel]->Create(m_attr["output_channels"][m_nChannel], m_attr, m_nChannel);
+                        m_nChannel++;
                     }
                 }
-                else if (buff[3] == 0x02)
+                else
                 {
-                    if (m_bIsRunning)
+                    cout << "[COMM] is running" << endl;
+                }
+            }
+            else if (root["cmd"] == "play_stop")
+            {
+                if (m_bIsRunning)
+                {
+                    Delete();
+                    cout << "[COMM] sender is deleted" << endl;
+                    m_nChannel = 0;
+                    m_bIsRunning = false;
+                }
+                else
+                {
+                    cout << "[COMM] is not running" << endl;
+                }
+            }
+            else if (root["cmd"] == "play_speed_up")
+            {
+                //배속 재생
+                if (m_bIsRunning)
+                {
+                    //실행 중이어야 배속 재생이 됨
+                    m_nSpeed = m_nSpeed * 2; // 1 -> 2 -> 4 -> 8-> 16
+                    for (int i = 0; i < m_nChannel; i++)
                     {
-                        Delete();
-                        cout << "[COMM] sender is deleted" << endl;
-                        m_nChannel = 0;
-                        m_bIsRunning = false;
-                    }
-                    else
-                    {
-                        cout << "[COMM] is not running" << endl;
+                        //일단 2배속
+                        m_CSender[i]->SetSpeed(m_nSpeed);
                     }
                 }
-                else if (buff[3] == 0x03)
-                {
-                    //배속 재생
-                    if (m_bIsRunning)
-                    {
-                        //실행 중이어야 배속 재생이 됨
-                        m_nSpeed = m_nSpeed * 2; // 1 -> 2 -> 4 -> 8-> 16
-                        for (int i = 0; i < m_nChannel; i++)
-                        {
-                            //일단 2배속
-                            m_CSender[i]->SetSpeed(m_nSpeed);
-                        }
-                    }
-                }
-                else if (buff[3] == 0x04)
+            }
+            else if (root["cmd"] == "play_speed_down")
+            {
+                if (m_bIsRunning)
                 {
                     if (m_nSpeed > 1)
                     {
@@ -191,17 +195,53 @@ bool CCommMgr::RX()
                         cout << "[COMM] Cannot speed down" << endl;
                     }
                 }
+                else
+                {
+                    cout << "[COMM] is not running" << endl;
+                }
             }
-        }
-        else
-        {
-            _d("[CCT] Unknown sync code...%c %c %c %c\n", buff[0], buff[1], buff[2], buff[3]);
+            else if (root["cmd"] == "get_play_list")
+            {
+                //재생 list 제공
+                string strbuf;
+                root = GetOutputFileList(m_attr["file_dst"].asString());
+                root["cmd"] = "get_play_list";
+
+                Json::StreamWriterBuilder builder;
+                builder["commentStyle"] = "None";
+                builder["indentation"] = "";
+                //std::unique_ptr<Json::StreamWriter> writer(builder.newStreamWriter());
+                strbuf = Json::writeString(builder, root);
+                //cout << strbuf << ", len : " << strlen(strbuf.c_str()) << endl;
+                TX((char *)strbuf.c_str(), strlen(strbuf.c_str()));
+            }
+            else if (root["cmd"] == "play_delete")
+            {
+                // target 삭제
+                string strbuf;
+                string target;
+                sstm.str("");
+                sstm << m_attr["file_dst"].asString() << "/" << root["info"]["target"].asString();
+                target = sstm.str();
+                cout << "[COMM] delete target : " << target << endl;
+                sstm.str("");
+                sstm << "rm -rf " << target;
+                cout << sstm.str() << endl;
+                system(sstm.str().c_str()); // 실제 삭제
+                root = GetOutputFileList(m_attr["file_dst"].asString());
+                root["cmd"] = "get_play_delete"; // key
+                Json::StreamWriterBuilder builder;
+                builder["commentStyle"] = "None";
+                builder["indentation"] = "";
+                strbuf = Json::writeString(builder, root);
+                TX((char *)strbuf.c_str(), strlen(strbuf.c_str()));
+            }
         }
     }
     _d("[CMGR] exit loop\n");
 }
 
-bool CCommMgr::TX(char *buff)
+bool CCommMgr::TX(char *buff, int size)
 {
     if (m_sdSend < 0)
     {
@@ -214,12 +254,12 @@ bool CCommMgr::TX(char *buff)
 
     sin.sin_family = AF_INET;
     sin.sin_addr.s_addr = inet_addr(m_attr["udp_target_ip"].asString().c_str());
-    sin.sin_port = htons(m_attr["udp_target_ip"].asInt());
+    sin.sin_port = htons(m_attr["udp_target_port"].asInt());
 
-    cout << "buff size : " << sizeof(buff) << endl;
+    //cout << "[COMM] buff size : " << sizeof(buff) << endl;
 
-    sendto(m_sdSend, buff, sizeof(buff), 0, (struct sockaddr *)&sin, sin_size);
-    cout << "[COMM] ip : " << inet_ntoa(sin.sin_addr) << " port : " << m_attr["udp_recv_port"].asInt() << ", send message : " << buff[0] << buff[1] << buff[2] << buff[3] << endl;
+    sendto(m_sdSend, buff, size, 0, (struct sockaddr *)&sin, sin_size);
+    cout << "[COMM] ip : " << inet_ntoa(sin.sin_addr) << " port : " << m_attr["udp_recv_port"].asInt() << ", send message(" << size << ") : " << buff << endl;
 }
 
 void CCommMgr::Delete()

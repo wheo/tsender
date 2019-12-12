@@ -1,6 +1,9 @@
 #ifndef _MISC_H_
 #define _MISC_H_
 
+Json::Value GetOutputFileList(string basepath);
+bool GetOutputCheck(string basepath);
+bool IsDirExist(string path);
 std::string get_current_time_and_date();
 std::ifstream::pos_type getFilesize(const char *filename);
 extern double rnd(double x, int digit);

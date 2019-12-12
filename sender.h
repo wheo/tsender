@@ -4,6 +4,8 @@
 #include "tsmuxer.h"
 #include "videoglobal.h"
 
+#define AUDIO_BUFF_SIZE 25
+
 class CSender : public PThread
 {
 public:
@@ -11,6 +13,7 @@ public:
 	~CSender(void);
 
 	bool send_bitstream(uint8_t *stream, int size);
+	bool send_audiostream(char *buff, int size);
 
 	int ReadSocket(uint8_t *buffer, unsigned bufferSize);
 	bool Create(Json::Value info, Json::Value attr, int nChannel);
@@ -36,7 +39,6 @@ protected:
 	char m_strShmPrefix[32];
 	int m_nRead;
 	int m_nWrite;
-
 
 private:
 	//mux_cfg_s m_mux_cfg;

@@ -1,6 +1,62 @@
 #include "main.h"
 #include "misc.h"
 
+Json::Value GetOutputFileList(string basepath)
+{
+	Json::Value root;
+	Json::Value b;
+	int idx = 0;
+	DIR *dir = opendir(basepath.c_str());
+	struct dirent *ent;
+	while ((ent = readdir(dir)) != NULL)
+	{
+		if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0)
+		{
+			b["idx"] = idx;
+			b["path"] = ent->d_name;
+			root["files"].append(b);
+			idx++;
+		}
+	}
+	closedir(dir);
+	return root;
+}
+
+bool GetOutputCheck(string basepath, string path)
+{
+	DIR *dir = opendir(basepath.c_str());
+	struct dirent *ent;
+	while ((ent = readdir(dir)) != NULL)
+	{
+		if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0)
+		{
+			if (strcmp(ent->d_name, path.c_str()) != 0)
+			{
+				//일치
+				closedir(dir);
+				cout << "[일치] : " << path << endl;
+				return true;
+			}
+		}
+	}
+	closedir(dir);
+	return false;
+}
+
+bool IsDirExist(string path)
+{
+	struct stat st;
+	if (stat(path.c_str(), &st) == 0)
+	{
+		// is present
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
 std::string get_current_time_and_date()
 {
 	time_t t = time(NULL);

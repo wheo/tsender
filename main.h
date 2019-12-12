@@ -29,7 +29,11 @@
 #include <ctime>
 #include <string>
 
+using namespace std;
+using namespace std::chrono;
+
 #include "json/json.h"
+#include "misc.h"
 
 extern "C"
 {
@@ -50,8 +54,6 @@ extern "C"
 
 #define __DEBUG 0
 #define __DUMP 0
-
-#include "misc.h"
 
 #define PACKET_SIZE 4096
 
