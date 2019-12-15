@@ -22,6 +22,7 @@ protected:
 private:
 	int m_nChannel;
 	Json::Value m_root;
+	Json::Value m_init;
 	Json::Reader m_reader;
 	CCommMgr *m_comm;
 

@@ -55,6 +55,7 @@ extern "C"
 #define __DEBUG 0
 #define __DUMP 0
 
+#define PACKET_HEADER_SIZE 24
 #define PACKET_SIZE 4096
 
 #ifdef DEBUG

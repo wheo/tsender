@@ -2,7 +2,7 @@
 #define _COMM_H_
 
 #include "main.h"
-#include "sender.h"
+#include "demuxer.h"
 
 #define MAX_NUM_SIM_CLIENT 64
 #define MAX_NUM_CHANNEL 6
@@ -54,7 +54,7 @@ protected:
     bool m_bIsRunning;
     struct sockaddr_in m_sin;
     Json::Value m_attr;
-    CSender *m_CSender[MAX_NUM_CHANNEL];
+    CDemuxer *m_CDemuxer[MAX_NUM_CHANNEL];
     pthread_mutex_t m_mutex_comm;
 
 private:

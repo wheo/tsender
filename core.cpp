@@ -77,10 +77,28 @@ bool CCore::Create()
 			m_comm = new CCommMgr();
 			if (!m_comm->Open(attr["udp_sender_port"].asInt(), attr))
 			{
+				cout << "[CORE] udp_sender_port is not exist" << endl;
 				exit(EXIT_FAILURE);
 			}
-			//char data[6] = "TN01";
-			//m_comm->Echo(data);
+			ifstream ifs_init("./init.json", ifstream::binary);
+			if (!ifs_init.is_open())
+			{
+				// do notthing
+			}
+			else
+			{
+				Json::Reader reader;
+				if (!reader.parse(ifs_init, m_init, true))
+				{
+					ifs_init.close();
+					_d("Failed to parse setting.json configuration\n%s\n", reader.getFormatedErrorMessages().c_str());
+				}
+				else
+				{
+					ifs_init.close();
+					Json::Value init;
+				}
+			}
 		}
 	}
 

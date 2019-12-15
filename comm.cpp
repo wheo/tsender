@@ -118,7 +118,6 @@ bool CCommMgr::RX()
             usleep(10);
             continue;
         }
-        //sendto(m_sdRecv, buff, sizeof(buff), 0, (struct sockaddr *)&sin, sin_size);
         cout << "[COMM] recv size : " << rd << endl;
         TX(buff, rd);
 
@@ -139,9 +138,9 @@ bool CCommMgr::RX()
                     m_nChannel = 0;
                     for (auto &value : m_attr["output_channels"])
                     {
-                        m_CSender[m_nChannel] = new CSender();
-                        m_CSender[m_nChannel]->SetMutex(&m_mutex_comm);
-                        m_CSender[m_nChannel]->Create(m_attr["output_channels"][m_nChannel], m_attr, m_nChannel);
+                        m_CDemuxer[m_nChannel] = new CDemuxer();
+                        m_CDemuxer[m_nChannel]->SetMutex(&m_mutex_comm);
+                        m_CDemuxer[m_nChannel]->Create(m_attr["output_channels"][m_nChannel], m_attr, m_nChannel);
                         m_nChannel++;
                     }
                 }
@@ -150,7 +149,7 @@ bool CCommMgr::RX()
                     cout << "[COMM] is running" << endl;
                 }
             }
-            else if (root["cmd"] == "play_stop")
+            else if (root["cmd"] == "play_close")
             {
                 if (m_bIsRunning)
                 {
@@ -170,34 +169,46 @@ bool CCommMgr::RX()
                 if (m_bIsRunning)
                 {
                     //실행 중이어야 배속 재생이 됨
-                    m_nSpeed = m_nSpeed * 2; // 1 -> 2 -> 4 -> 8-> 16
+                    m_nSpeed = root["info"]["speed"].asInt();
+                    cout << "[COMM] Set speed : " << m_nSpeed;
                     for (int i = 0; i < m_nChannel; i++)
                     {
-                        //일단 2배속
-                        m_CSender[i]->SetSpeed(m_nSpeed);
+                        m_CDemuxer[i]->SetSpeed(m_nSpeed);
                     }
                 }
             }
-            else if (root["cmd"] == "play_speed_down")
+            else if (root["cmd"] == "play_close")
             {
                 if (m_bIsRunning)
                 {
-                    if (m_nSpeed > 1)
-                    {
-                        m_nSpeed = m_nSpeed / 2;
-                        for (int i = 0; i < m_nChannel; i++)
-                        {
-                            m_CSender[i]->SetSpeed(m_nSpeed);
-                        }
-                    }
-                    else
-                    {
-                        cout << "[COMM] Cannot speed down" << endl;
-                    }
+                    Delete();
+                    cout << "[COMM] sender is deleted" << endl;
+                    m_nChannel = 0;
+                    m_bIsRunning = false;
                 }
                 else
                 {
                     cout << "[COMM] is not running" << endl;
+                }
+            }
+            else if (root["cmd"] == "play_pause")
+            {
+                //멈춤
+                if (m_bIsRunning)
+                {
+                    //실행 중이어야 배속 재생이 됨
+                    for (int i = 0; i < m_nChannel; i++)
+                    {
+                        m_CDemuxer[i]->SetPause();
+                    }
+                }
+            }
+            else if (root["cmd"] == "play_reverse")
+            {
+                // 역재생
+                for (int i = 0; i < m_nChannel; i++)
+                {
+                    m_CDemuxer[i]->SetReverse();
                 }
             }
             else if (root["cmd"] == "get_play_list")
@@ -227,7 +238,10 @@ bool CCommMgr::RX()
                 sstm.str("");
                 sstm << "rm -rf " << target;
                 cout << sstm.str() << endl;
-                system(sstm.str().c_str()); // 실제 삭제
+                if (!target.empty())
+                {
+                    system(sstm.str().c_str()); // 실제 삭제
+                }
                 root = GetOutputFileList(m_attr["file_dst"].asString());
                 root["cmd"] = "get_play_delete"; // key
                 Json::StreamWriterBuilder builder;
@@ -238,7 +252,7 @@ bool CCommMgr::RX()
             }
         }
     }
-    _d("[CMGR] exit loop\n");
+    _d("[COMM] exit loop\n");
 }
 
 bool CCommMgr::TX(char *buff, int size)
@@ -267,7 +281,7 @@ void CCommMgr::Delete()
     cout << "[COMM] open channel count : " << m_nChannel << endl;
     for (int i = 0; i < m_nChannel; i++)
     {
-        SAFE_DELETE(m_CSender[i]);
+        SAFE_DELETE(m_CDemuxer[i]);
         cout << "[COMM] channel " << i << " has been SAFE_DELETE" << endl;
     }
 }

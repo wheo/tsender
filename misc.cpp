@@ -12,10 +12,13 @@ Json::Value GetOutputFileList(string basepath)
 	{
 		if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0)
 		{
-			b["idx"] = idx;
-			b["path"] = ent->d_name;
-			root["files"].append(b);
-			idx++;
+			if (ent->d_type == DT_DIR)
+			{
+				b["idx"] = idx;
+				b["path"] = ent->d_name;
+				root["files"].append(b);
+				idx++;
+			}
 		}
 	}
 	closedir(dir);

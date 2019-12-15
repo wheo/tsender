@@ -1,40 +1,44 @@
-#ifndef _SENDER_H_
-#define _SENDER_H_
+#ifndef _DEMUXER_H_
+#define _DEMUXER_H_
 
-#include "queue.h";
+#include "sender.h"
+#include "queue.h"
 
 #define AUDIO_BUFF_SIZE 24
 
-class CSender : public PThread
+class CDemuxer : public PThread
 {
 public:
-	CSender(void);
-	~CSender(void);
+	CDemuxer(void);
+	~CDemuxer(void);
 
 	bool send_bitstream(uint8_t *stream, int size);
 	bool send_audiostream(char *buff, int size);
 
 	int ReadSocket(uint8_t *buffer, unsigned bufferSize);
-	bool Create(Json::Value info, int nChannel);
-	bool SetAttribute(Json::Value attr);
+	bool Create(Json::Value info, Json::Value attr, int nChannel);
 	void Delete();
 	void SetSpeed(int speed);
 	void SetPause();
 	void SetReverse();
 	int GetSpeed() { return m_nSpeed; }
 
+	bool SetMutex(pthread_mutex_t *mutex_sender);
 	bool SetSocket();
-	pthread_mutex_t *GetMutex() { return m_mutex_sender; }
-	bool SetQueue(CQueue **queue, int nChannel);
+	pthread_mutex_t *GetMutex() { return m_mutex_demuxer; }
 
-	bool Send();
+	bool Play();
 	void log(int type, int state);
+	bool GetOutputs(string basepath);
+	bool GetChannelFiles(string path);
+	int Demux(string src_filename);
 
 protected:
 	int m_nChannel;		// 현재 채널 넘버
 	Json::Value m_info; // 채널 정보 json
 	Json::Value m_attr; // 채널 공유 속성 attribute
-	CQueue *m_queue;
+	CQueue *m_CQueue;
+	CSender *m_CSender;
 
 	char m_strShmPrefix[32];
 	int m_nRead;
@@ -49,7 +53,7 @@ private:
 	int m_sock;		   // 소켓 디스크립터
 	sockaddr_in m_mcast_group;
 	AVPacket m_pkt;
-	//AVFormatContext *fmt_ctx;
+	AVFormatContext *fmt_ctx;
 	int m_index = 0;
 
 	const AVBitStreamFilter *m_bsf = NULL;
@@ -59,16 +63,13 @@ private:
 
 	Json::Value json;
 
-	pthread_mutex_t *m_mutex_sender;
+	pthread_mutex_t *m_mutex_demuxer;
 	int m_nSpeed;
 	bool m_pause;
-	bool m_reverse;
 
 protected:
 	void Run();
 	void OnTerminate(){};
 };
 
-extern CSender *ipc;
-
-#endif // _SENDER_H_
+#endif // _DEMUXER_H_

@@ -92,11 +92,10 @@ GROUP.01.SRC = main.cpp\
 			misc.cpp\
 			core.cpp\
 			comm.cpp\
+			demuxer.cpp\
 			sender.cpp\
-			tsmuxer.cpp\
-			tspes.cpp\
-			videoglobal.cpp\
-			jsoncpp.cpp
+			jsoncpp.cpp\
+			queue.cpp
 GROUP.01.OBJ = $(addprefix $(BUILD_DIR)/,$(GROUP.01.SRC:.cpp=.o))
 GROUP.01.DEP = $(GROUP.01.OBJ:.o=.d)
 
