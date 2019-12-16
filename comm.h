@@ -52,6 +52,7 @@ protected:
     int m_sdSend;
     int m_nChannel;
     bool m_bIsRunning;
+    bool m_bIsRerverse;
     struct sockaddr_in m_sin;
     Json::Value m_attr;
     CDemuxer *m_CDemuxer[MAX_NUM_CHANNEL];
@@ -59,6 +60,7 @@ protected:
 
 private:
     int m_nSpeed;
+    int m_nMoveSec;
 
 protected:
     //CCommCt *m_pCt[MAX_NUM_SIM_CLIENT];

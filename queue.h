@@ -31,7 +31,9 @@ public:
 	void RetAudio(void *p);
 
 	void Enable();
-	void EnableAudio();
+	void Disable();
+	void EnableAudio();  // 아직 구현 안됨 2019-12-17
+	void DisableAudio(); // 아직 구현 안됨 2019-12-17
 	bool IsEnable() { return m_bEnable; };
 	bool IsAudioEnable() { return m_bAudioEnable; };
 

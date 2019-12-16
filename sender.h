@@ -35,6 +35,7 @@ protected:
 	Json::Value m_info; // 채널 정보 json
 	Json::Value m_attr; // 채널 공유 속성 attribute
 	CQueue *m_queue;
+	bool m_is_reverse;
 
 	char m_strShmPrefix[32];
 	int m_nRead;

@@ -75,6 +75,7 @@ bool CCommMgr::Open(int nPort, Json::Value attr)
     m_nChannel = 0;
     m_nSpeed = 1;
     m_bIsRunning = false;
+    m_bIsRerverse = false;
     m_nPort = nPort;
     m_attr = attr;
 
@@ -132,6 +133,15 @@ bool CCommMgr::RX()
                 //cout << root["info"]["target"].asString() << endl;
 
                 m_attr["target"] = root["info"]["target"].asString();
+                if (m_bIsRerverse && m_bIsRunning)
+                {
+                    for (int i = 0; i < m_nChannel; i++)
+                    {
+                        Delete();
+                    }
+                    m_bIsRerverse = false;
+                    m_bIsRunning = false;
+                }
                 if (!m_bIsRunning)
                 {
                     m_bIsRunning = true;
@@ -149,6 +159,27 @@ bool CCommMgr::RX()
                     cout << "[COMM] is running" << endl;
                 }
             }
+            else if (root["cmd"] == "play_reverse")
+            {
+                // 역재생
+                if (m_bIsRunning)
+                {
+                    for (int i = 0; i < m_nChannel; i++)
+                    {
+                        Delete();
+                    }
+                }
+                m_bIsRunning = true;
+                m_bIsRerverse = true;
+                m_nChannel = 0;
+                for (auto &value : m_attr["output_channels"])
+                {
+                    m_CDemuxer[m_nChannel] = new CDemuxer();
+                    m_CDemuxer[m_nChannel]->SetMutex(&m_mutex_comm);
+                    m_CDemuxer[m_nChannel]->Create(m_attr["output_channels"][m_nChannel], m_attr, m_nChannel);
+                    m_nChannel++;
+                }
+            }
             else if (root["cmd"] == "play_close")
             {
                 if (m_bIsRunning)
@@ -160,7 +191,7 @@ bool CCommMgr::RX()
                 }
                 else
                 {
-                    cout << "[COMM] is not running" << endl;
+                    cout << "[COMM] (" << root["cmd"].asString() << ") player is not running" << endl;
                 }
             }
             else if (root["cmd"] == "play_speed_up")
@@ -176,19 +207,9 @@ bool CCommMgr::RX()
                         m_CDemuxer[i]->SetSpeed(m_nSpeed);
                     }
                 }
-            }
-            else if (root["cmd"] == "play_close")
-            {
-                if (m_bIsRunning)
-                {
-                    Delete();
-                    cout << "[COMM] sender is deleted" << endl;
-                    m_nChannel = 0;
-                    m_bIsRunning = false;
-                }
                 else
                 {
-                    cout << "[COMM] is not running" << endl;
+                    cout << "[COMM] (" << root["cmd"].asString() << ") player is not running" << endl;
                 }
             }
             else if (root["cmd"] == "play_pause")
@@ -202,13 +223,25 @@ bool CCommMgr::RX()
                         m_CDemuxer[i]->SetPause();
                     }
                 }
-            }
-            else if (root["cmd"] == "play_reverse")
-            {
-                // 역재생
-                for (int i = 0; i < m_nChannel; i++)
+                else
                 {
-                    m_CDemuxer[i]->SetReverse();
+                    cout << "[COMM] (" << root["cmd"].asString() << ") player is not running" << endl;
+                }
+            }
+            else if (root["cmd"] == "play_seek")
+            {
+                if (m_bIsRunning)
+                {
+                    m_nMoveSec = root["info"]["move_sec"].asInt();
+                    cout << "[COMM] Move sec : " << m_nMoveSec << endl;
+                    for (int i = 0; i < m_nChannel; i++)
+                    {
+                        m_CDemuxer[i]->MoveFileTime(m_nMoveSec);
+                    }
+                }
+                else
+                {
+                    cout << "[COMM] (" << root["cmd"].asString() << ") player is not running" << endl;
                 }
             }
             else if (root["cmd"] == "get_play_list")

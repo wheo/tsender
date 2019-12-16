@@ -17,6 +17,7 @@ public:
 
 	int ReadSocket(uint8_t *buffer, unsigned bufferSize);
 	bool Create(Json::Value info, Json::Value attr, int nChannel);
+	bool CreateReverse(Json::Value info, Json::Value attr, int nChannel);
 	void Delete();
 	void SetSpeed(int speed);
 	void SetPause();
@@ -31,7 +32,12 @@ public:
 	void log(int type, int state);
 	bool GetOutputs(string basepath);
 	bool GetChannelFiles(string path);
+	bool GetChannelFilesRerverse(string path);
 	int Demux(string src_filename);
+	int DemuxRerverse(string src_filename);
+	bool MoveFileTime(int nSec);
+	void ReadStart();
+	void ReadStop();
 
 protected:
 	int m_nChannel;		// 현재 채널 넘버
@@ -43,6 +49,7 @@ protected:
 	char m_strShmPrefix[32];
 	int m_nRead;
 	int m_nWrite;
+	bool m_IsRerverse;
 
 private:
 	//mux_cfg_s m_mux_cfg;
@@ -50,7 +57,7 @@ private:
 	int m_nRecSec;	 // 얼마나 녹화를 할 것인가
 	int m_nFrameCount; // 프레임 수
 	int m_file_idx;	// 파일 인덱스 번호
-	int m_sock;		   // 소켓 디스크립터
+	//int m_sock;		   // 소켓 디스크립터
 	sockaddr_in m_mcast_group;
 	AVPacket m_pkt;
 	AVFormatContext *fmt_ctx;

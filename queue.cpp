@@ -56,6 +56,13 @@ void CQueue::Enable()
 	//_d("[QUEUE] Enable packet outputing now...%d\n", m_nPacket);
 	cout << "[QUEUE.ch" << m_nChannel << "] Enable packet outputing now... " << m_nPacket << endl;
 }
+
+void CQueue::Disable()
+{
+	m_bEnable = false;
+	cout << "[QUEUE.ch" << m_nChannel << "] diabled now... " << m_nPacket << endl;
+}
+
 int CQueue::PutAudio(char *pData, int nSize)
 {
 	int nCount = 0;
