@@ -112,7 +112,7 @@ void CCore::Run()
 #if __DEBUG
 		cout << "[CORE] Thread is alive" << endl;
 #endif
-		usleep(100000);
+		this_thread::sleep_for(milliseconds(1000));
 	}
 }
 #if 0

@@ -197,6 +197,11 @@ int CDemuxer::Demux(string src_filename)
 {
 	m_index++;
 	ifstream ifs;
+	double fTime = m_info["fps"].asDouble();
+	double num = m_info["num"].asDouble();
+	double den = m_info["den"].asDouble();
+	double target_time = num / den * AV_TIME_BASE;
+	cout << "[DEMUXER.ch" << m_nChannel << "] " << target_time << ", " << num << ", " << den << ", type : " << m_attr["type"].asString() << endl;
 
 	if (m_attr["type"].asString() == "video")
 	{
@@ -209,6 +214,7 @@ int CDemuxer::Demux(string src_filename)
 		{
 			cout << "[DEMUXER.ch" << m_nChannel << "] " << src_filename << " file is opened" << endl;
 		}
+#if 0
 		m_bsf = av_bsf_get_by_name("hevc_mp4toannexb");
 
 		if (av_bsf_alloc(m_bsf, &m_bsfc) < 0)
@@ -228,6 +234,7 @@ int CDemuxer::Demux(string src_filename)
 			_d("[DEMUXER] Failed to init bsfc\n");
 			return false;
 		}
+#endif
 	}
 	else if (m_attr["type"].asString() == "audio")
 	{
@@ -250,6 +257,7 @@ int CDemuxer::Demux(string src_filename)
 #endif
 	high_resolution_clock::time_point begin;
 	high_resolution_clock::time_point end;
+	int64_t ts = 0;
 
 	begin = high_resolution_clock::now();
 	while (!m_bExit)
@@ -258,26 +266,27 @@ int CDemuxer::Demux(string src_filename)
 		{
 			AVPacket pkt;
 			av_init_packet(&pkt);
+			if (av_seek_frame(fmt_ctx, -1, ts, AVSEEK_FLAG_ANY) < 0)
+			{
+				fprintf(stderr, "%s: error while seeking\n", fmt_ctx->filename);
+			}
+			ts += target_time;
+			cout << "[DEMUXER.ch" << m_nChannel << "] ts : " << ts << endl;
 			if (av_read_frame(fmt_ctx, &pkt) < 0)
 			{
 				cout << "[DEMUXER.ch" << m_nChannel << "] meet EOF" << endl;
 				avformat_close_input(&fmt_ctx);
-				// 메모리닉 나면 아래 free_context 추가할 것
+				// 메모리릭 나면 아래 avformat_free_context 추가할 것
 				//avformat_free_context(fmt_ctx);
 				break;
 			}
-			while (!m_bExit)
+			if (m_CQueue->Put(&pkt))
 			{
-				if (!m_CQueue->Put(&pkt))
-				{
-					//cout << "[DEMUXER.ch" << m_nChannel << "] Put Video failed(" << m_CQueue->GetVideoPacketSize() << ")" << endl;
-					this_thread::sleep_for(microseconds(10000));
-					// and retry
-				}
-				else
-				{
-					break;
-				}
+				cout << "[DEMUXER.ch" << m_nChannel << "] put buffer" << endl;
+			}
+			else
+			{
+				cout << "return 0" << endl;
 			}
 		}
 		else if (m_attr["type"].asString() == "audio")
@@ -346,6 +355,7 @@ int CDemuxer::DemuxRerverse(string src_filename)
 		{
 			cout << "[DEMUXER.ch" << m_nChannel << "] " << src_filename << " file is opened" << endl;
 		}
+#if 0
 		m_bsf = av_bsf_get_by_name("hevc_mp4toannexb");
 
 		if (av_bsf_alloc(m_bsf, &m_bsfc) < 0)
@@ -365,6 +375,7 @@ int CDemuxer::DemuxRerverse(string src_filename)
 			_d("[DEMUXER] Failed to init bsfc\n");
 			return false;
 		}
+#endif
 	}
 
 #if 0
@@ -823,4 +834,5 @@ void CDemuxer::Delete()
 	//cout << "[DEMUXER.ch" << m_nChannel << "] sock " << m_sock << " closed" << endl;
 	//close(m_sock);
 	SAFE_DELETE(m_CSender);
+	m_CQueue->Exit();
 }

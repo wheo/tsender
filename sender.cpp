@@ -37,13 +37,14 @@ bool CSender::Create(Json::Value info, int nChannel)
 	m_nSpeed = 1;
 	m_pause = false;
 
-	if (SetSocket())
+	if (!SetSocket())
 	{
-		cout << "[SENDER.ch" << m_nChannel << "] SetSocket config is completed" << endl;
-		Start();
+		cout << "[SENDER.ch" << m_nChannel << "] SetSocket config is failed" << endl;
+		return false;
 	}
-
 	cout << "[SENDER.ch" << m_nChannel << "] type : " << m_attr["type"].asString() << endl;
+	cout << "[SENDER.ch" << m_nChannel << "] SetSocket config is completed" << endl;
+	Start();
 
 	return true;
 }
@@ -144,6 +145,7 @@ bool CSender::Send()
 	double num = m_info["num"].asDouble();
 	double den = m_info["den"].asDouble();
 	double target_time = num / den * 1000000;
+
 	int64_t acc_time = 0;
 	int64_t tick_diff = 0;
 	high_resolution_clock::time_point begin;
@@ -173,21 +175,18 @@ bool CSender::Send()
 #endif
 			if (!m_queue->Get(&pkt))
 			{
-				//cout << "[SENDER.ch" << m_nChannel << "] GetVideo packet failed" << endl;
+				cout << "[SENDER.ch" << m_nChannel << "] GetVideo packet failed" << endl;
 			}
 			else
 			{
-				while (!m_bExit && m_pause)
+				cout << "[SENDER.ch" << m_nChannel << "] GetVideo packet success (" << m_queue->GetVideoPacketSize() << ")" << endl;
+				if (!send_bitstream(pkt.data, pkt.size))
 				{
-					cout << "[SENDER.ch" << m_nChannel << "] GetVideo packet success (" << m_queue->GetVideoPacketSize() << ")" << endl;
-					if (!send_bitstream(pkt.data, pkt.size))
-					{
-						cout << "[SENDER.ch" << m_nChannel << "] send_bitstream failed" << endl;
-					}
-					else
-					{
-						cout << "[SENDER.ch" << m_nChannel << "] send_bitstream success" << endl;
-					}
+					cout << "[SENDER.ch" << m_nChannel << "] send_bitstream failed" << endl;
+				}
+				else
+				{
+					cout << "[SENDER.ch" << m_nChannel << "] send_bitstream success" << endl;
 				}
 				//av_packet_unref(&pkt);
 				m_queue->Ret(&pkt);
@@ -218,12 +217,13 @@ bool CSender::Send()
 		{
 			target_time = num / den * 1000000 / m_nSpeed;
 		}
+
 		while (tick_diff < target_time)
 		{
 			//usleep(1); // 1000000 us = 1 sec
 			end = high_resolution_clock::now();
 			tick_diff = duration_cast<microseconds>(end - begin).count();
-			this_thread::sleep_for(microseconds(1));
+			this_thread::sleep_for(microseconds(1000));
 		}
 		begin = end;
 

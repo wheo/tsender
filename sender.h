@@ -53,8 +53,8 @@ private:
 	//AVFormatContext *fmt_ctx;
 	int m_index = 0;
 
-	const AVBitStreamFilter *m_bsf = NULL;
-	AVBSFContext *m_bsfc = NULL;
+	//const AVBitStreamFilter *m_bsf = NULL;
+	//AVBSFContext *m_bsfc = NULL;
 
 	string m_filename;
 

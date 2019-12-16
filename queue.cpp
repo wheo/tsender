@@ -9,6 +9,7 @@ CQueue::CQueue()
 	m_nSizeQueue = 0;
 
 	m_bEnable = false;
+	m_bExit = false;
 	m_nPacket = 0;
 	m_nAudio = 0;
 
@@ -108,13 +109,15 @@ int CQueue::Put(AVPacket *pkt)
 {
 	int nCount = 0; // timeout 위한 용도
 
-	if (m_nMaxQueue < m_nPacket)
+	while (!m_bExit)
 	{
-		return 0;
-	}
+		if ((m_nMaxQueue < m_nPacket) && !m_bExit)
+		{
+			cout << "[QUEUE.ch" << m_nChannel << "] put video wait : " << m_nWritePos << endl;
+			this_thread::sleep_for(microseconds(10000));
+			continue;
+		}
 
-	while (true)
-	{
 		pthread_mutex_lock(&m_mutex);
 		if (pkt->size > 0)
 		{
@@ -139,7 +142,7 @@ int CQueue::Put(AVPacket *pkt)
 		nCount++;
 		if (nCount >= 100000)
 		{
-			cout << "[QUEUE.ch" << m_nChannel << " ] PutVideo TImeout" << endl;
+			cout << "[QUEUE.ch" << m_nChannel << "] PutVideo Timeout" << endl;
 			break;
 		}
 	}
@@ -246,4 +249,9 @@ void CQueue::Ret(AVPacket *pkt)
 	}
 	m_nPacket--;
 	pthread_mutex_unlock(&m_mutex);
+}
+
+bool CQueue::Exit()
+{
+	m_bExit = true;
 }

@@ -39,8 +39,11 @@ public:
 
 	int GetVideoPacketSize() { return m_nPacket; }
 	int GetAudioPacketSize() { return m_nAudio; }
+	bool Exit();
 
 private:
+	bool m_bExit;
+
 	bool m_bEnable;
 	bool m_bAudioEnable;
 
