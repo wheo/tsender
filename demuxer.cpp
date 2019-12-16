@@ -382,20 +382,20 @@ int CDemuxer::DemuxRerverse(string src_filename)
 		{
 			AVPacket pkt;
 			av_init_packet(&pkt);
+			// 타임스탬프로 변환해서 감소
+			//int ret = avformat_seek_file(fmt_ctx, m_nVideoStream, 0, tm, tm, 0);
+			int64_t ts;
+			//av_seek_frame (fmt_ctx), 0, ts, int flags) // 이걸로 할 수 있을듯
 			if (av_read_frame(fmt_ctx, &pkt) < 0)
 			{
 				cout << "[DEMUXER.ch" << m_nChannel << "] meet EOF" << endl;
 				avformat_close_input(&fmt_ctx);
-				// 메모리닉 나면 아래 free_context 추가할 것
+				// 메모리릭 나면 아래 free_context 추가할 것
 				//avformat_free_context(fmt_ctx);
 				break;
 			}
 			while (!m_bExit)
 			{
-				// 타임스탬프로 변환해서 감소
-				//int ret = avformat_seek_file(fmt_ctx, m_nVideoStream, 0, tm, tm, 0);
-				int64_t ts;
-				//av_seek_frame (fmt_ctx), 0, ts, int flags) // 이걸로 할 수 있을듯
 				if (pkt.flags == AV_PKT_FLAG_KEY)
 				{
 					// keyframe
