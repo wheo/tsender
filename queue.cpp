@@ -68,13 +68,14 @@ int CQueue::PutAudio(char *pData, int nSize)
 {
 	int nCount = 0;
 
-	if (m_nMaxAudioQueue < m_nAudio)
+	while (!m_bExit)
 	{
-		return 0;
-	}
-
-	while (true)
-	{
+		if ((m_nMaxAudioQueue < m_nAudio) && !m_bExit)
+		{
+			cout << "[QUEUE.ch" << m_nChannel << "] wait audio put : " << m_nWritePos << endl;
+			this_thread::sleep_for(microseconds(10000));
+			continue;
+		}
 		ELEM *pe = &m_e[m_nWriteAudioPos];
 		pe->p = new char[nSize];
 		pthread_mutex_lock(&m_mutex);
@@ -89,7 +90,7 @@ int CQueue::PutAudio(char *pData, int nSize)
 				m_nWriteAudioPos = 0;
 			}
 			m_nAudio++;
-			//cout << "[QUEUE.ch" << m_nChannel << "] m_nWriteAudioPos : " << m_nWriteAudioPos << endl;
+			cout << "[QUEUE.ch" << m_nChannel << "] m_nWriteAudioPos : " << m_nWriteAudioPos << ", size : " << pe->len << endl;
 			pthread_mutex_unlock(&m_mutex);
 			return 0;
 		}
@@ -113,7 +114,7 @@ int CQueue::Put(AVPacket *pkt)
 	{
 		if ((m_nMaxQueue < m_nPacket) && !m_bExit)
 		{
-			cout << "[QUEUE.ch" << m_nChannel << "] put video wait : " << m_nWritePos << endl;
+			//cout << "[QUEUE.ch" << m_nChannel << "] put video wait : " << m_nWritePos << endl;
 			this_thread::sleep_for(microseconds(10000));
 			continue;
 		}
@@ -151,15 +152,20 @@ int CQueue::Put(AVPacket *pkt)
 
 void *CQueue::GetAudio()
 {
+#if 0
 	if (m_bEnable == false)
 	{
 		return NULL;
 	}
+#endif
+	cout << "[QUEUE.ch" << m_nChannel << "] m_nReadAudioPos : " << m_nReadAudioPos << endl;
 
-	while (true)
+	ELEM *pe = &m_e[m_nReadAudioPos];
+
+	while (pe->len > 0)
 	{
-		ELEM *pe = &m_e[m_nReadAudioPos];
-		//cout << "[QUEUE.ch" << m_nChannel << "] m_nReadAudioPos : " << m_nReadAudioPos << ", pe->len : " << pe->len << endl;
+
+		cout << "[QUEUE.ch" << m_nChannel << "] m_nReadAudioPos : " << m_nReadAudioPos << ", pe->len : " << pe->len << endl;
 		pthread_mutex_lock(&m_mutex);
 		if (pe->len)
 		{

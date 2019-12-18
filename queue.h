@@ -2,7 +2,7 @@
 #define _QUEUE_H_
 
 #define MAX_NUM_QUEUE 120
-#define MAX_NUM_AUDIO_QUEUE 1024
+#define MAX_NUM_AUDIO_QUEUE 512
 #define QUE_INFINITE -1
 #define MIN_BUF_FRAME 9
 

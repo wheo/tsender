@@ -32,41 +32,36 @@ bool CSender::Create(Json::Value info, int nChannel)
 {
 	m_info = info;
 	m_nChannel = nChannel;
-	//m_attr = attr;
 	m_file_idx = 0;
 	m_nSpeed = 1;
 	m_pause = false;
+	_d("[Sender.ch%d] Thread address : %x\n", m_nChannel, this);
 
 	if (!SetSocket())
 	{
 		cout << "[SENDER.ch" << m_nChannel << "] SetSocket config is failed" << endl;
 		return false;
 	}
-	cout << "[SENDER.ch" << m_nChannel << "] type : " << m_attr["type"].asString() << endl;
+	cout << "[SENDER.ch" << m_nChannel << "] type : " << m_info["type"].asString() << endl;
 	cout << "[SENDER.ch" << m_nChannel << "] SetSocket config is completed" << endl;
 	Start();
 
 	return true;
 }
 
-bool CSender::SetAttribute(Json::Value attr)
-{
-	m_attr = attr;
-}
-
 bool CSender::SetQueue(CQueue **queue, int nChannel)
 {
 	m_queue = *queue;
 	m_nChannel = nChannel;
+	m_queue->SetInfo(m_nChannel, m_info["type"].asString());
 	m_queue->Enable();
 	cout << cout << "[SENDER.ch" << m_nChannel << "] SetQueue Success" << endl;
+
 	return true;
 }
 
 bool CSender::SetSocket()
 {
-	cout << "[SENDER.ch" << m_nChannel << "] : " << m_attr["file_dst"].asString() << endl;
-
 	struct ip_mreq mreq;
 	int state;
 
@@ -150,9 +145,9 @@ bool CSender::Send()
 	int64_t tick_diff = 0;
 	high_resolution_clock::time_point begin;
 	high_resolution_clock::time_point end;
-	cout << "[SENDER.ch" << m_nChannel << "] " << target_time << ", " << num << ", " << den << ", type : " << m_attr["type"].asString() << endl;
+	cout << "[SENDER.ch" << m_nChannel << "] " << target_time << ", " << num << ", " << den << ", type : " << m_info["type"].asString() << endl;
 
-	if (m_attr["type"].empty())
+	if (m_info["type"].empty())
 	{
 		cout << "[SENDER.ch" << m_nChannel << "] type not setting yet" << endl;
 		return false;
@@ -161,7 +156,7 @@ bool CSender::Send()
 	begin = high_resolution_clock::now();
 	while (!m_bExit)
 	{
-		if (m_attr["type"].asString() == "video")
+		if (m_info["type"].asString() == "video")
 		{
 			AVPacket pkt;
 			av_init_packet(&pkt);
@@ -175,45 +170,44 @@ bool CSender::Send()
 #endif
 			if (!m_queue->Get(&pkt))
 			{
-				cout << "[SENDER.ch" << m_nChannel << "] GetVideo packet failed" << endl;
+				//cout << "[SENDER.ch" << m_nChannel << "] GetVideo packet failed" << endl;
 			}
 			else
 			{
-				cout << "[SENDER.ch" << m_nChannel << "] GetVideo packet success (" << m_queue->GetVideoPacketSize() << ")" << endl;
+				//cout << "[SENDER.ch" << m_nChannel << "] GetVideo packet success (" << m_queue->GetVideoPacketSize() << ")" << endl;
 				if (!send_bitstream(pkt.data, pkt.size))
 				{
 					cout << "[SENDER.ch" << m_nChannel << "] send_bitstream failed" << endl;
 				}
 				else
 				{
-					cout << "[SENDER.ch" << m_nChannel << "] send_bitstream success" << endl;
+					//cout << "[SENDER.ch" << m_nChannel << "] send_bitstream success" << endl;
 				}
 				//av_packet_unref(&pkt);
 				m_queue->Ret(&pkt);
 			}
 		}
-		else if (m_attr["type"].asString() == "audio")
+		else if (m_info["type"].asString() == "audio")
 		{
+#if 0
 			//char audio_buf[AUDIO_BUFF_SIZE];
 			//ifs.read(audio_buf, AUDIO_BUFF_SIZE);
 			//cout << hex << audio_buf << endl;
-			if (!m_pause)
+			ELEM *pe;
+			pe->p = (char *)m_queue->GetAudio();
+			if (!send_audiostream(pe->p, pe->len))
 			{
-				ELEM *pe;
-				pe->p = (char *)m_queue->GetAudio();
-				if (!send_audiostream(pe->p, pe->len))
-				{
-					cout << "[SENDER.ch" << m_nChannel << "] send_audiostream failed" << endl;
-				}
-				else
-				{
-					cout << "[SENDER.ch" << m_nChannel << "] send_audiostream success" << endl;
-				}
-				m_queue->RetAudio(pe);
+				cout << "[SENDER.ch" << m_nChannel << "] send_audiostream failed" << endl;
 			}
+			else
+			{
+				cout << "[SENDER.ch" << m_nChannel << "] send_audiostream success" << endl;
+			}
+			m_queue->RetAudio(pe);
+#endif
 		}
 
-		if (m_attr["type"].asString() == "video")
+		if (m_info["type"].asString() == "video")
 		{
 			target_time = num / den * 1000000 / m_nSpeed;
 		}

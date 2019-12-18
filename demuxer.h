@@ -57,7 +57,8 @@ private:
 	int m_nRecSec;	 // 얼마나 녹화를 할 것인가
 	int m_nFrameCount; // 프레임 수
 	int m_file_idx;	// 파일 인덱스 번호
-	//int m_sock;		   // 소켓 디스크립터
+	int m_sock;		   // 소켓 디스크립터
+	bool m_IsPause;
 	sockaddr_in m_mcast_group;
 	AVPacket m_pkt;
 	AVFormatContext *fmt_ctx;
@@ -72,7 +73,6 @@ private:
 
 	pthread_mutex_t *m_mutex_demuxer;
 	int m_nSpeed;
-	bool m_pause;
 
 protected:
 	void Run();

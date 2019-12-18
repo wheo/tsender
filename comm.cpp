@@ -217,7 +217,6 @@ bool CCommMgr::RX()
                 //멈춤
                 if (m_bIsRunning)
                 {
-                    //실행 중이어야 배속 재생이 됨
                     for (int i = 0; i < m_nChannel; i++)
                     {
                         m_CDemuxer[i]->SetPause();
