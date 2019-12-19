@@ -133,13 +133,12 @@ bool CCommMgr::RX()
                 //cout << root["info"]["target"].asString() << endl;
 
                 m_attr["target"] = root["info"]["target"].asString();
-                if (m_bIsRerverse && m_bIsRunning)
+                if (m_bIsRunning)
                 {
                     for (int i = 0; i < m_nChannel; i++)
                     {
                         Delete();
                     }
-                    m_bIsRerverse = false;
                     m_bIsRunning = false;
                 }
                 if (!m_bIsRunning)
@@ -161,6 +160,7 @@ bool CCommMgr::RX()
             }
             else if (root["cmd"] == "play_reverse")
             {
+#if 0
                 // 역재생
                 if (m_bIsRunning)
                 {
@@ -178,6 +178,19 @@ bool CCommMgr::RX()
                     m_CDemuxer[m_nChannel]->SetMutex(&m_mutex_comm);
                     m_CDemuxer[m_nChannel]->Create(m_attr["output_channels"][m_nChannel], m_attr, m_nChannel);
                     m_nChannel++;
+                }
+#endif
+                if (m_bIsRunning)
+                {
+                    for (int i = 0; i < m_nChannel; i++)
+                    {
+                        cout << "[COMM] Set Reverse" << m_nSpeed << endl;
+                        m_CDemuxer[i]->SetReverse();
+                    }
+                }
+                else
+                {
+                    cout << "[COMM] (" << root["cmd"].asString() << ") player is not running" << endl;
                 }
             }
             else if (root["cmd"] == "play_close")
@@ -235,7 +248,7 @@ bool CCommMgr::RX()
                     cout << "[COMM] Move sec : " << m_nMoveSec << endl;
                     for (int i = 0; i < m_nChannel; i++)
                     {
-                        m_CDemuxer[i]->MoveFileTime(m_nMoveSec);
+                        m_CDemuxer[i]->SetMoveSec(m_nMoveSec);
                     }
                 }
                 else

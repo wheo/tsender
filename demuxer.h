@@ -1,6 +1,8 @@
 #ifndef _DEMUXER_H_
 #define _DEMUXER_H_
 
+#define MAX_AUDIO_STREAM 8
+
 #include "sender.h"
 #include "queue.h"
 
@@ -17,7 +19,6 @@ public:
 
 	int ReadSocket(uint8_t *buffer, unsigned bufferSize);
 	bool Create(Json::Value info, Json::Value attr, int nChannel);
-	bool CreateReverse(Json::Value info, Json::Value attr, int nChannel);
 	void Delete();
 	void SetSpeed(int speed);
 	void SetPause();
@@ -35,9 +36,8 @@ public:
 	bool GetChannelFilesRerverse(string path);
 	int Demux(string src_filename);
 	int DemuxRerverse(string src_filename);
-	bool MoveFileTime(int nSec);
-	void ReadStart();
-	void ReadStop();
+	bool SetMoveSec(int nSec);
+	bool Reverse();
 
 protected:
 	int m_nChannel;		// 현재 채널 넘버
@@ -49,7 +49,9 @@ protected:
 	char m_strShmPrefix[32];
 	int m_nRead;
 	int m_nWrite;
+	double m_fps;
 	bool m_IsRerverse;
+	int64_t m_currentDuration;
 
 private:
 	//mux_cfg_s m_mux_cfg;
@@ -63,16 +65,30 @@ private:
 	AVPacket m_pkt;
 	AVFormatContext *fmt_ctx;
 	int m_index = 0;
+	int m_nMoveSec;
+	double m_fDuration;
+	double m_fFPS;
 
-	//const AVBitStreamFilter *m_bsf = NULL;
-	//AVBSFContext *m_bsfc = NULL;
+	int video_stream_idx;
+	int m_nAudioStream[MAX_AUDIO_STREAM];
 
-	string m_filename;
+	int m_nPlayAudioStream;
+	int m_nAudioStreamCount;
+
+	const AVBitStreamFilter *m_bsf = NULL;
+	AVBSFContext *m_bsfc = NULL;
+
+	AVCodecContext *video_dec_ctx = NULL;
+	AVStream *video_stream = NULL, *audio_stream = NULL;
+
+	int refcount;
 
 	Json::Value json;
 
 	pthread_mutex_t *m_mutex_demuxer;
 	int m_nSpeed;
+	bool MoveSec(int nSec);
+	int open_codec_context(int *stream_idx, AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type);
 
 protected:
 	void Run();

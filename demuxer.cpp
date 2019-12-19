@@ -35,8 +35,10 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 	m_attr = attr;
 	m_file_idx = 0;
 	m_nSpeed = 1;
+	m_nMoveSec = 0;
 	m_IsPause = false;
 	m_IsRerverse = false;
+	refcount = 0; // 1과 0의 차이를 알아보자
 	//m_CQueue = new CQueue();
 
 	cout << "[DEMUXER.ch" << m_nChannel << "] type : " << m_info["type"].asString() << endl;
@@ -134,18 +136,19 @@ bool CDemuxer::SetSocket()
 
 void CDemuxer::Run()
 {
+	if (!Play())
+	{
+		//error send() return false
+	}
+	else
+	{
+		cout << "[DEMUXER.ch" << m_nChannel << "] sender loop completed" << endl;
+		// send() eturn true
+	}
+
 	while (!m_bExit)
 	{
-		if (!Play())
-		{
-			//error send() return false
-		}
-		else
-		{
-			cout << "[DEMUXER.ch" << m_nChannel << "] sender loop completed" << endl;
-			// send() eturn true
-		}
-		//usleep(100);
+		usleep(100);
 	}
 }
 
@@ -173,6 +176,10 @@ int CDemuxer::Demux(string src_filename)
 	double fps = den / num;
 	double fTime;
 	int64_t tick_diff = 0;
+	int ret = 0;
+	m_fps = fps;
+	double fFPS = 0.;
+	int64_t nFrame = 0;
 
 	cout << "[DEMUXER.ch" << m_nChannel << "] " << src_filename << ", " << target_time << ", " << num << ", " << den << ", type : " << m_info["type"].asString() << endl;
 
@@ -187,8 +194,28 @@ int CDemuxer::Demux(string src_filename)
 		{
 			cout << "[DEMUXER.ch" << m_nChannel << "] " << src_filename << " file is opened" << endl;
 		}
+
+		ret = avformat_find_stream_info(fmt_ctx, NULL);
+		if (ret < 0)
+		{
+			cout << "[DEMUXER] failed to find proper stream in FILE : " << src_filename << endl;
+		}
+
+		if (open_codec_context(&video_stream_idx, &video_dec_ctx, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0)
+		{
+			video_stream = fmt_ctx->streams[video_stream_idx];
+
+			/* dump input information to stderr */
+			av_dump_format(fmt_ctx, 0, src_filename.c_str(), 0);
+
+			if (!video_stream)
+			{
+				fprintf(stderr, "[DEMUXER] Could not find audio or video stream in the input, aborting\n");
+				ret = 1;
+			}
+		}
 #if 0
-		m_bsf = av_bsf_get_by_name("hevc_mp4toannexb");
+		m_bsf = av_bsf_get_by_name("hevc_metadata");
 
 		if (av_bsf_alloc(m_bsf, &m_bsfc) < 0)
 		{
@@ -222,6 +249,7 @@ int CDemuxer::Demux(string src_filename)
 		{
 			cout << "[DEMUXER.ch" << m_nChannel << "] " << src_filename << " file open success" << endl;
 		}
+		_d("[DEMUXER.ch%d] fduration : %.3f\n", m_nChannel, m_fDuration);
 	}
 #if 0
 	av_init_packet(&m_pkt);
@@ -247,37 +275,59 @@ int CDemuxer::Demux(string src_filename)
 			ts += target_time;
 			cout << "[DEMUXER.ch" << m_nChannel << "] ts : " << ts << endl;
 #endif
-
-			AVStream *pStream = fmt_ctx->streams[0];
-			int nFrame = 10 * fps; // 10초로 이동하고 싶다.
-			fTime = (((double)nFrame * pStream->avg_frame_rate.den) / pStream->avg_frame_rate.num) - 0.5;
-			fTime = max(fTime, 0.);
-
-			AVRational timeBaseQ;
-			AVRational timeBase = pStream->time_base;
-
-			timeBaseQ.num = 1;
-			timeBaseQ.den = AV_TIME_BASE;
-
-			int64_t tm = (int64_t)(fTime * AV_TIME_BASE);
-			tm = av_rescale_q(tm, timeBaseQ, timeBase);
-			int ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, 0);
-			_d("[DEMUXER.ch%d] ret : %d , fTime : %.3f, tm : %lld\n", m_nChannel, ret, fTime, tm);
-
 			AVPacket pkt;
 			av_init_packet(&pkt);
+			pkt.data = NULL;
+			pkt.size = 0;
+
+			if (m_nMoveSec > 0)
+			{
+				MoveSec(m_nMoveSec);
+			}
+
+			if (m_IsRerverse)
+			{
+				Reverse();
+			}
 
 			if (!m_IsPause) // 멈춤 상태면 av_read_frame을 하지 않음
 			{
 				if (av_read_frame(fmt_ctx, &pkt) < 0)
 				{
-					cout << "[DEMUXER.ch" << m_nChannel << "] meet EOF(" << fmt_ctx->filename << "), ts : " << tm << endl;
+					cout << "[DEMUXER.ch" << m_nChannel << "] meet EOF(" << fmt_ctx->filename << endl;
 					avformat_close_input(&fmt_ctx);
 					// 메모리릭 나면 아래 avformat_free_context 추가할 것
 					//avformat_free_context(fmt_ctx);
 					break;
 				}
 			}
+#if 0
+
+			if ((ret = av_bsf_send_packet(m_bsfc, &pkt)) < 0)
+			{
+				av_log(fmt_ctx, AV_LOG_ERROR, "Failed to send packet to filter %s for stream %d\n", m_bsfc->filter->name, pkt.stream_index);
+				//return ret;
+			}
+			// TODO: when any automatically-added bitstream filter is generating multiple
+			// output packets for a single input one, we'll need to call this in a loop
+			// and write each output packet.
+			if ((ret = av_bsf_receive_packet(m_bsfc, &pkt)) < 0)
+			{
+				if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+				{
+					av_log(fmt_ctx, AV_LOG_ERROR, "Failed to receive packet from filter %s for stream %d\n", m_bsfc->filter->name, pkt.stream_index);
+				}
+				if (fmt_ctx->error_recognition & AV_EF_EXPLODE)
+				{
+					//
+				}
+				//return ret;
+				//return 0;
+			}
+#endif
+			nFrame++;
+			cout << "[DEMUXER.ch" << m_nChannel << "] (" << nFrame << ")pkt.flag : " << pkt.flags << ", size : " << pkt.size << endl;
+
 			if (!send_bitstream(pkt.data, pkt.size))
 			{
 				cout << "[DEMUXER.ch" << m_nChannel << "] send_bitstream failed" << endl;
@@ -286,7 +336,8 @@ int CDemuxer::Demux(string src_filename)
 			{
 				//cout << "[DEMUXER.ch" << m_nChannel << "] send_bitstream success" << endl;
 			}
-			//av_packet_unref(&pkt);
+
+			av_packet_unref(&pkt);
 
 #if 0
 			if (m_CQueue->Put(&pkt))
@@ -341,88 +392,60 @@ int CDemuxer::Demux(string src_filename)
 	return true;
 }
 
-bool CDemuxer::MoveFileTime(int nSec)
+bool CDemuxer::SetMoveSec(int nSec)
 {
-	double fTime = m_info["fps"].asDouble();
-	double num = m_info["num"].asDouble();
-	double den = m_info["den"].asDouble();
-	bool bMoved = false;
-	int64_t ts = 0;
-	//m_CQueue->Clear();
-	//av_seek_frame(fmt_ctx, 0, 1, AVSEEK_FLAG_ANY);
+	m_nMoveSec = nSec;
+}
 
-#if 0
-	return false;
-	ReadStop();	
+bool CDemuxer::MoveSec(int nSec)
+{
+	int num = m_info["num"].asInt();
+	int den = m_info["den"].asInt();
 
-	int m_nVideoStream = 0; // 스트림 비디오 (0이 아닐 수도 있음 INDEX로 알고 있음)
-
-	AVStream *pStream = fmt_ctx->streams[m_nVideoStream];
-	if (!pStream)
-	{
-		cout << "[DEMUXER.ch" << m_nChannel << "] pStream error " << endl;
-		return false;
-	}
-
-	//> 이동하려 하는 시간정보 구하고
-	//int nFrame = nSec * m_fFPS;
-	int nFrame = nSec * (den / num);
-	fTime = (((double)nFrame * den) / num) - 0.5;
-//	double fTime = (((double)nFrame*pStream->avg_frame_rate.den)/pStream->avg_frame_rate.num);
-#if 0
-	if (m_fFirstVideoTime >= 0.)
-	{
-		fTime += m_fFirstVideoTime;
-	}
-#endif
-
-	//	fTime = max(fTime, 0.1);
+	int ret = 0;
+	double fTime = 0;
+	AVStream *pStream = fmt_ctx->streams[0];
+	_d("[DEMUXER.ch%d] nbstream : %d\n", m_nChannel, fmt_ctx->nb_streams);
+	int nFrame = nSec * m_fps; // 10초로 이동하고 싶다.
+	fTime = (((double)nFrame * pStream->avg_frame_rate.den) / pStream->avg_frame_rate.num) - 0.5;
+	fTime = (double)nFrame * (double)den / (double)num;
 	fTime = max(fTime, 0.);
 
 	AVRational timeBaseQ;
 	AVRational timeBase = pStream->time_base;
 
-	cout << "[DEMUXER.ch" << m_nChannel << "] 여기까지 왔군 .... " << nSec << ", ftime " << fTime << " 초" << endl;
-
 	timeBaseQ.num = 1;
 	timeBaseQ.den = AV_TIME_BASE;
 
 	int64_t tm = (int64_t)(fTime * AV_TIME_BASE);
+	_d("before tm : %lld\n", tm);
 	tm = av_rescale_q(tm, timeBaseQ, timeBase);
-
-	//> 파일 이동
-	avcodec_flush_buffers(fmt_ctx->streams[m_nVideoStream]->codec);
-	int ret = avformat_seek_file(fmt_ctx, m_nVideoStream, 0, tm, tm, 0);
-	if (ret < 0)
+	int64_t seek_target = av_rescale((nSec * AV_TIME_BASE), fmt_ctx->streams[0]->time_base.den, fmt_ctx->streams[0]->time_base.num);
+	if (m_nChannel < 6)
 	{
-		_d("[DMUXER.%d] Failed to seek frame (%.3f)\n", m_nChannel, tm);
-		return false;
+		_d("[DEMUXER.ch%d] nFrame : %d, nSec : %d, fps : %.3f, tm : %lld, fTime : %.3f, seekTarget : %lld\n", m_nChannel, nFrame, nSec, m_fps, tm, fTime, seek_target);
+		//ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, 0);
+		//avcodec_flush_buffers(fmt_ctx->streams[0]->codec);
+		ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, AVSEEK_FLAG_FRAME);
+		_d("[DEMUXER.ch%d] ret : %d , timebaseQ : %d/%d, timebase : %d/%d\n", m_nChannel, ret, timeBaseQ.num, timeBaseQ.den, timeBase.num, timeBase.den);
 	}
-
-	bMoved = true;
-	if (bMoved)
-	{
-		//	InitLKFSData();
-		ReadStart();
-	}
-#endif
+	m_nMoveSec = 0;
 }
 
-void CDemuxer::ReadStart()
+bool CDemuxer::Reverse()
 {
-	Start();
-}
-void CDemuxer::ReadStop()
-{
-	Terminate();
-
-	//m_bFrameInfoCopy = false;
-
-	//이게 뭔지??
-	//SAFE_DELETE(m_pSharFrame);
-
-	//m_videoPktQue.Clear();
-	m_CQueue->Clear();
+	int ret = 0;
+	if (m_nChannel < 6)
+	{
+		m_currentDuration = m_currentDuration - 1001;
+		//ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, 0);
+		//avcodec_flush_buffers(fmt_ctx->streams[0]->codec);
+		ret = avformat_seek_file(fmt_ctx, 0, 0, m_currentDuration, m_currentDuration, AVSEEK_FLAG_FRAME);
+		if (ret < 0)
+		{
+			_d("[REVERSE] ret : %d, notwork\n", ret);
+		}
+	}
 }
 
 #if 0
@@ -511,7 +534,6 @@ bool CDemuxer::GetChannelFiles(string path)
 	DIR *dir = opendir(path.c_str());
 	struct dirent *ent;
 	stringstream ss;
-
 
 	while ((ent = readdir(dir)) != NULL && !m_bExit)
 	{
@@ -655,10 +677,9 @@ void CDemuxer::SetPause()
 
 void CDemuxer::SetReverse()
 {
-	//m_CQueue->Clear();
-	//m_CSender->SetReverse();
+	m_IsRerverse = !m_IsRerverse;
 }
-#if 0
+
 int CDemuxer::open_codec_context(int *stream_idx, AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type)
 {
 	int ret, stream_index;
@@ -669,8 +690,7 @@ int CDemuxer::open_codec_context(int *stream_idx, AVCodecContext **dec_ctx, AVFo
 	ret = av_find_best_stream(fmt_ctx, type, -1, -1, NULL, 0);
 	if (ret < 0)
 	{
-		fprintf(stderr, "Could not find %s stream in input file '%s'\n",
-				av_get_media_type_string(type), src_filename);
+		fprintf(stderr, "Could not find %s stream in input file");
 		return ret;
 	}
 	else
@@ -682,8 +702,7 @@ int CDemuxer::open_codec_context(int *stream_idx, AVCodecContext **dec_ctx, AVFo
 		dec = avcodec_find_decoder(st->codecpar->codec_id);
 		if (!dec)
 		{
-			fprintf(stderr, "Failed to find %s codec\n",
-					av_get_media_type_string(type));
+			fprintf(stderr, "Failed to find %s codec\n", av_get_media_type_string(type));
 			return AVERROR(EINVAL);
 		}
 
@@ -691,16 +710,14 @@ int CDemuxer::open_codec_context(int *stream_idx, AVCodecContext **dec_ctx, AVFo
 		*dec_ctx = avcodec_alloc_context3(dec);
 		if (!*dec_ctx)
 		{
-			fprintf(stderr, "Failed to allocate the %s codec context\n",
-					av_get_media_type_string(type));
+			fprintf(stderr, "Failed to allocate the %s codec context\n", av_get_media_type_string(type));
 			return AVERROR(ENOMEM);
 		}
 
 		/* Copy codec parameters from input stream to output codec context */
 		if ((ret = avcodec_parameters_to_context(*dec_ctx, st->codecpar)) < 0)
 		{
-			fprintf(stderr, "Failed to copy %s codec parameters to decoder context\n",
-					av_get_media_type_string(type));
+			fprintf(stderr, "Failed to copy %s codec parameters to decoder context\n", av_get_media_type_string(type));
 			return ret;
 		}
 
@@ -708,8 +725,7 @@ int CDemuxer::open_codec_context(int *stream_idx, AVCodecContext **dec_ctx, AVFo
 		av_dict_set(&opts, "refcounted_frames", refcount ? "1" : "0", 0);
 		if ((ret = avcodec_open2(*dec_ctx, dec, &opts)) < 0)
 		{
-			fprintf(stderr, "Failed to open %s codec\n",
-					av_get_media_type_string(type));
+			fprintf(stderr, "Failed to open %s codec\n", av_get_media_type_string(type));
 			return ret;
 		}
 		*stream_idx = stream_index;
@@ -717,7 +733,6 @@ int CDemuxer::open_codec_context(int *stream_idx, AVCodecContext **dec_ctx, AVFo
 
 	return 0;
 }
-#endif
 
 #if 0
 int CDemuxer::get_format_from_sample_fmt(const char **fmt, enum AVSampleFormat sample_fmt)
