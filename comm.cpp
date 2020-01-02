@@ -133,14 +133,6 @@ bool CCommMgr::RX()
                 //cout << root["info"]["target"].asString() << endl;
 
                 m_attr["target"] = root["info"]["target"].asString();
-                if (m_bIsRunning)
-                {
-                    for (int i = 0; i < m_nChannel; i++)
-                    {
-                        Delete();
-                    }
-                    m_bIsRunning = false;
-                }
                 if (!m_bIsRunning)
                 {
                     m_bIsRunning = true;

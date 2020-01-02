@@ -52,6 +52,7 @@ protected:
 	double m_fps;
 	bool m_IsRerverse;
 	int64_t m_currentDuration;
+	int64_t nFrame;
 
 private:
 	//mux_cfg_s m_mux_cfg;
