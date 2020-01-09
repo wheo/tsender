@@ -93,12 +93,12 @@ bool CSender::SetSocket()
 		return false;
 	}
 
-	uint ttl = 16;
+	//uint ttl = 16;
+	uint ttl = m_attr["udp_sender_ttl"].asUInt();
 	state = setsockopt(m_sock, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
 	if (state < 0)
 	{
 		cout << "[SENDER.ch" << m_nChannel << "] Setting IP_MULTICAST_TTL error" << endl;
-		;
 		return false;
 	}
 
@@ -322,7 +322,7 @@ void CSender::SetSpeed(int speed)
 
 void CSender::SetPause()
 {
-	m_pause != m_pause;
+	m_pause = !m_pause;
 }
 
 void CSender::SetReverse()

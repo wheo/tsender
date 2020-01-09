@@ -90,9 +90,11 @@ BUILD_NUMBER_FILE=build-number.txt
 
 GROUP.01.SRC = main.cpp\
 			misc.cpp\
+			base64.cpp\
 			core.cpp\
 			comm.cpp\
 			demuxer.cpp\
+			thumbnail.cpp\
 			sender.cpp\
 			jsoncpp.cpp\
 			queue.cpp

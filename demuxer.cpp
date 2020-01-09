@@ -10,6 +10,7 @@ extern char __BUILD_NUMBER;
 CDemuxer::CDemuxer(void)
 {
 	m_bExit = false;
+	m_CThumbnail = NULL;
 	//pthread_mutex_init(m_mutex_demuxer, 0);
 }
 
@@ -40,6 +41,7 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 	m_IsRerverse = false;
 	refcount = 0; // 1과 0의 차이를 알아보자
 	//m_CQueue = new CQueue();
+	m_CThumbnail = new CThumbnail();
 
 	cout << "[DEMUXER.ch" << m_nChannel << "] type : " << m_info["type"].asString() << endl;
 
@@ -78,7 +80,8 @@ bool CDemuxer::SetSocket()
 	memset(&m_mcast_group, 0x00, sizeof(m_mcast_group));
 	m_mcast_group.sin_family = AF_INET;
 	m_mcast_group.sin_port = htons(m_info["port"].asInt());
-	m_mcast_group.sin_addr.s_addr = inet_addr(m_info["ip"].asString().c_str());
+	//m_mcast_group.sin_addr.s_addr = inet_addr(m_info["ip"].asString().c_str());
+	m_mcast_group.sin_addr.s_addr = inet_addr(INADDR_ANY);
 
 	cout << "[SENDER.ch" << m_nChannel << "] ip : " << m_info["ip"].asString() << ", port : " << m_info["port"].asInt() << endl;
 
@@ -103,16 +106,18 @@ bool CDemuxer::SetSocket()
 		return false;
 	}
 
-	uint ttl = 16;
+	//uint ttl = 16;
+	uint ttl = m_attr["udp_sender_ttl"].asUInt();
 	state = setsockopt(m_sock, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
 	if (state < 0)
 	{
 		cout << "[SENDER.ch" << m_nChannel << "] Setting IP_MULTICAST_TTL error" << endl;
-		;
 		return false;
 	}
 
-	mreq.imr_multiaddr = m_mcast_group.sin_addr;
+	//mreq.imr_multiaddr = m_mcast_group.sin_addr;
+	//mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+	mreq.imr_multiaddr.s_addr = inet_addr(m_info["ip"].asString().c_str());
 	mreq.imr_interface.s_addr = htonl(INADDR_ANY);
 
 	if (setsockopt(m_sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0)
@@ -143,7 +148,7 @@ void CDemuxer::Run()
 	else
 	{
 		cout << "[DEMUXER.ch" << m_nChannel << "] sender loop completed" << endl;
-		// send() eturn true
+		// send() return true
 	}
 
 	while (!m_bExit)
@@ -264,6 +269,8 @@ int CDemuxer::Demux(string src_filename)
 	begin = high_resolution_clock::now();
 	int readcnt = 0;
 
+	m_CThumbnail->Create(m_info, m_attr, m_nChannel);
+
 	while (!m_bExit)
 	{
 		if (m_info["type"].asString() == "video")
@@ -301,7 +308,6 @@ int CDemuxer::Demux(string src_filename)
 				{
 					cout << "[DEMUXER.ch" << m_nChannel << "] meet EOF(" << fmt_ctx->filename << endl;
 					avformat_close_input(&fmt_ctx);
-					// 메모리릭 나면 아래 avformat_free_context 추가할 것
 					//avformat_free_context(fmt_ctx);
 					break;
 				}
@@ -471,6 +477,13 @@ bool CDemuxer::Reverse()
 	}
 }
 
+Json::Value CDemuxer::GetThumbnail(int nSec)
+{
+	Json::Value ret_json;
+	ret_json = m_CThumbnail->GetThumbnail(nSec);
+	return json;
+}
+
 #if 0
 bool CDemuxer::GetOutputs(string basepath)
 {
@@ -527,7 +540,7 @@ bool CDemuxer::GetChannelFiles(string path)
 	ifstream ifs(path + "/" + "meta.json");
 	if (!ifs.is_open())
 	{
-		//is not open or not exist
+		//if not open or not exist
 		cout << "[DEMUXER.ch" << m_nChannel << "] " << path + "/" + "meta.json"
 			 << " is not exist" << endl;
 		return false;

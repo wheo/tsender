@@ -34,6 +34,7 @@ using namespace std::chrono;
 
 #include "json/json.h"
 #include "misc.h"
+#include "base64.h"
 
 extern "C"
 {

@@ -54,7 +54,6 @@ bool CCore::Create()
 			attr["version"] = m_root["version"];
 			attr["file_dst"] = m_root["file_dst"];
 #endif
-
 			// file_dst 디렉토리 없으면 생성
 			stringstream sstm;
 			sstm << "mkdir -p " << m_root["file_dst"].asString();

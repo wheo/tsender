@@ -5,6 +5,7 @@
 
 #include "sender.h"
 #include "queue.h"
+#include "thumbnail.h"
 
 #define AUDIO_BUFF_SIZE 24
 
@@ -34,6 +35,7 @@ public:
 	bool GetOutputs(string basepath);
 	bool GetChannelFiles(string path);
 	bool GetChannelFilesRerverse(string path);
+	Json::Value GetThumbnail(int nSec);
 	int Demux(string src_filename);
 	int DemuxRerverse(string src_filename);
 	bool SetMoveSec(int nSec);
@@ -56,6 +58,7 @@ protected:
 
 private:
 	//mux_cfg_s m_mux_cfg;
+	CThumbnail *m_CThumbnail;
 
 	int m_nRecSec;	 // 얼마나 녹화를 할 것인가
 	int m_nFrameCount; // 프레임 수

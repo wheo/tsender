@@ -70,6 +70,6 @@ protected:
 	void OnTerminate(){};
 };
 
-extern CSender *ipc;
+//extern CSender *ipc;
 
 #endif // _SENDER_H_
