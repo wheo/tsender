@@ -10,7 +10,7 @@ extern char __BUILD_NUMBER;
 CThumbnail::CThumbnail(void)
 {
 	m_bExit = false;
-	pthread_mutex_init(m_mutex_thumbnail, 0);
+	pthread_mutex_init(&m_mutex_thumbnail, 0);
 	m_fmt_ctx = NULL;
 }
 
@@ -22,7 +22,7 @@ CThumbnail::~CThumbnail(void)
 	_d("[THUMBNAIL.ch%d] Trying to exit thread\n", m_nChannel);
 	Terminate();
 	_d("[THUMBNAIL.ch%d] exited...\n", m_nChannel);
-	pthread_mutex_destroy(m_mutex_thumbnail);
+	pthread_mutex_destroy(&m_mutex_thumbnail);
 }
 
 bool CThumbnail::Create(Json::Value info, Json::Value attr, int nChannel)

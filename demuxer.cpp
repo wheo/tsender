@@ -40,7 +40,6 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 	m_IsPause = false;
 	m_IsRerverse = false;
 	refcount = 0; // 1과 0의 차이를 알아보자
-	//m_CQueue = new CQueue();
 	m_CThumbnail = new CThumbnail();
 
 	cout << "[DEMUXER.ch" << m_nChannel << "] type : " << m_info["type"].asString() << endl;
@@ -80,8 +79,8 @@ bool CDemuxer::SetSocket()
 	memset(&m_mcast_group, 0x00, sizeof(m_mcast_group));
 	m_mcast_group.sin_family = AF_INET;
 	m_mcast_group.sin_port = htons(m_info["port"].asInt());
-	//m_mcast_group.sin_addr.s_addr = inet_addr(m_info["ip"].asString().c_str());
-	m_mcast_group.sin_addr.s_addr = inet_addr(INADDR_ANY);
+	m_mcast_group.sin_addr.s_addr = inet_addr(m_info["ip"].asString().c_str());
+	//m_mcast_group.sin_addr.s_addr = inet_addr(INADDR_ANY);
 
 	cout << "[SENDER.ch" << m_nChannel << "] ip : " << m_info["ip"].asString() << ", port : " << m_info["port"].asInt() << endl;
 
@@ -114,11 +113,13 @@ bool CDemuxer::SetSocket()
 		cout << "[SENDER.ch" << m_nChannel << "] Setting IP_MULTICAST_TTL error" << endl;
 		return false;
 	}
-
-	//mreq.imr_multiaddr = m_mcast_group.sin_addr;
-	//mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+#if 1
+	mreq.imr_multiaddr = m_mcast_group.sin_addr;
+	mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+#else
 	mreq.imr_multiaddr.s_addr = inet_addr(m_info["ip"].asString().c_str());
 	mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+#endif
 
 	if (setsockopt(m_sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0)
 	{
@@ -141,18 +142,19 @@ bool CDemuxer::SetSocket()
 
 void CDemuxer::Run()
 {
-	if (!Play())
-	{
-		//error send() return false
-	}
-	else
-	{
-		cout << "[DEMUXER.ch" << m_nChannel << "] sender loop completed" << endl;
-		// send() return true
-	}
-
 	while (!m_bExit)
 	{
+		if (!Play())
+		{
+			//error send() return false
+		}
+		else
+		{
+#if __DEFRECATED
+			cout << "[DEMUXER.ch" << m_nChannel << "] sender loop completed" << endl;
+#endif
+			// send() return true
+		}
 		usleep(100);
 	}
 }
@@ -166,6 +168,7 @@ bool CDemuxer::Play()
 	if (!GetChannelFiles(sstm.str()))
 	{
 		//failed
+		delete this;
 	}
 	return true;
 }
@@ -308,6 +311,7 @@ int CDemuxer::Demux(string src_filename)
 				{
 					cout << "[DEMUXER.ch" << m_nChannel << "] meet EOF(" << fmt_ctx->filename << endl;
 					avformat_close_input(&fmt_ctx);
+					fmt_ctx = NULL;
 					//avformat_free_context(fmt_ctx);
 					break;
 				}
@@ -362,22 +366,27 @@ int CDemuxer::Demux(string src_filename)
 		}
 		else if (m_info["type"].asString() == "audio")
 		{
-			char audio_buf[AUDIO_BUFF_SIZE];
-			ifs.read(audio_buf, AUDIO_BUFF_SIZE);
-			//cout << hex << audio_buf << endl;
-			//legacy code
-			//m_CQueue->PutAudio(audio_buf, AUDIO_BUFF_SIZE);
-			if (!send_audiostream(audio_buf, AUDIO_BUFF_SIZE))
+			if (!(m_IsPause && m_IsRerverse))
 			{
-				cout << "[DEMUXER.ch" << m_nChannel << "] send_audiotream failed" << endl;
+				char audio_buf[AUDIO_BUFF_SIZE];
+				ifs.read(audio_buf, AUDIO_BUFF_SIZE);
+
+				// 현재 값을 계속 할때마다 알아어서 전역변수에 저장
+
+				//legacy code
+				//m_CQueue->PutAudio(audio_buf, AUDIO_BUFF_SIZE);
+				if (!send_audiostream(audio_buf, AUDIO_BUFF_SIZE))
+				{
+					cout << "[DEMUXER.ch" << m_nChannel << "] send_audiotream failed" << endl;
+				}
+				if (ifs.eof())
+				{
+					ifs.close();
+					cout << "[DEMUXER.ch" << m_nChannel << "] audio meet eof" << endl;
+					break;
+				}
+				//if meet eof then break
 			}
-			if (ifs.eof())
-			{
-				ifs.close();
-				cout << "[DEMUXER.ch" << m_nChannel << "] audio meet eof" << endl;
-				break;
-			}
-			//if meet eof then break
 		}
 
 		if (m_info["type"].asString() == "video")
@@ -396,6 +405,12 @@ int CDemuxer::Demux(string src_filename)
 		tick_diff = 0;
 	}
 	//this_thread::sleep_for(microseconds(100000));
+	_d("[%d] fmt_ctx : %x\n", m_nChannel, fmt_ctx);
+	if (fmt_ctx)
+	{
+		cout << "[DEMUXER.ch" << m_nChannel << "] avformat_close_input (" << fmt_ctx->filename << endl;
+		avformat_close_input(&fmt_ctx);
+	}
 	cout << "[DEMUXER.ch" << m_nChannel << "] " << src_filename << " file is closed" << endl;
 	return true;
 }
@@ -463,7 +478,7 @@ bool CDemuxer::Reverse()
 	if (m_nChannel < 6)
 	{
 		//avcodec_flush_buffers(fmt_ctx->streams[0]->codec);
-		_d("[DEMUXER.ch%d] m_nFrameCount : %d, fps : %.3f, tm : %lld, fTime : %.3f\n", m_nChannel, m_nFrameCount, m_fps, tm, fTime);
+		//_d("[DEMUXER.ch%d] m_nFrameCount : %d, fps : %.3f, tm : %lld, fTime : %.3f\n", m_nChannel, m_nFrameCount, m_fps, tm, fTime);
 		ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, AVSEEK_FLAG_FRAME);
 		if (ret < 0)
 		{
@@ -566,46 +581,17 @@ bool CDemuxer::GetChannelFiles(string path)
 		}
 	}
 
-#if 0
-	DIR *dir = opendir(path.c_str());
-	struct dirent *ent;
-	stringstream ss;
-
-	while ((ent = readdir(dir)) != NULL && !m_bExit)
-	{
-		if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0)
-		{
-			if (ent->d_type != DT_DIR)
-			{
-				string fn = ent->d_name;
-				if (fn.substr(fn.find_last_of(".") + 1) == "es" || fn.substr(fn.find_last_of(".") + 1) == "audio")
-				{
-					ss.str("");
-					//cout << "[DEMUXER.ch" << m_nChannel << "] path : " << path << "/" << ent->d_name << endl;
-					ss << path << "/" << ent->d_name;
-					if (getFilesize(ss.str().c_str()) == 0)
-					{
-						cout << "[DEMUXER.ch" << m_nChannel << "] " << ss.str() << " size is 0" << endl;
-						continue;
-					}
-					if (Demux(ss.str()))
-					{
-						cout << "[DEMUXER.ch" << m_nChannel << "] " << ss.str() << " demux success" << endl;
-					}
-				}
-			}
-		}
-	}
-	closedir(dir);
-#else
 	for (auto &value : meta["files"])
 	{
+		if (m_bExit == true)
+		{
+			break;
+		}
 		if (Demux(value["name"].asString()))
 		{
 			cout << "[DEMUXER.ch" << m_nChannel << "] " << value["name"].asString() << " demux success" << endl;
 		}
 	}
-#endif
 	return true;
 }
 
@@ -809,5 +795,4 @@ void CDemuxer::Delete()
 	//cout << "[DEMUXER.ch" << m_nChannel << "] sock " << m_sock << " closed" << endl;
 	close(m_sock);
 	//SAFE_DELETE(m_CSender);
-	//m_CQueue->Exit();
 }

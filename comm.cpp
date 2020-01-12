@@ -252,7 +252,6 @@ bool CCommMgr::RX()
 			}
 			else if (root["cmd"] == "get_thumbnail")
 			{
-
 				Json::Value ret_json;
 				if (m_bIsRunning)
 				{

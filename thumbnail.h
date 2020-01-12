@@ -20,7 +20,7 @@ public:
 	Json::Value GetThumbnail(int nSec);
 
 private:
-	pthread_mutex_t *m_mutex_thumbnail;
+	pthread_mutex_t m_mutex_thumbnail;
 	int m_nChannel;
 	Json::Value m_info; // 채널 정보 json
 	Json::Value m_attr; // 채널 공유 속성 attribute
