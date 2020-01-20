@@ -23,8 +23,11 @@ public:
 	bool Create(Json::Value info, Json::Value attr, int nChannel);
 	void Delete();
 	void SetSpeed(int speed);
-	void SetPause();
-	void SetReverse();
+	void SetPause(uint64_t pts);
+	void SetSyncPTS(uint64_t pts);
+
+	void SyncCheck();
+	bool SetReverse();
 	int GetSpeed() { return m_nSpeed; }
 
 	bool SetMutex(pthread_mutex_t *mutex_sender);
@@ -42,6 +45,9 @@ public:
 	//int DemuxRerverse(string src_filename);
 	bool SetMoveSec(int nSec);
 	bool Reverse();
+	bool MoveFrame(int nFrame);
+	uint64_t GetCurrentPTS() { return m_current_pts; }
+	int FindFileIndexFromFrame(uint64_t nFrame);
 
 protected:
 	int m_nChannel;		// 현재 채널 넘버
@@ -54,7 +60,7 @@ protected:
 	int m_nRead;
 	int m_nWrite;
 	double m_fps;
-	bool m_IsRerverse;
+	bool m_bIsRerverse;
 	int64_t m_currentDuration;
 	int64_t nFrame;
 
@@ -67,14 +73,32 @@ private:
 	int m_nFrameCount; // 프레임 수
 	int m_file_idx;	// 파일 인덱스 번호
 	int m_sock;		   // 소켓 디스크립터
-	bool m_IsPause;
+	bool m_Wait;
+
+	bool m_IsForcePause;
+
+	bool m_IsMove;
+
+	Json::Value m_files;
+
 	sockaddr_in m_mcast_group;
 	AVPacket m_pkt;
 	AVFormatContext *fmt_ctx;
 	int m_index = 0;
-	int m_nMoveSec;
+	int m_nMoveFrame;
+	int m_nMoveIdx;
+	//double m_fMoveLeftSec;
 	double m_fDuration;
 	double m_fFPS;
+	uint64_t m_current_pts;
+	uint64_t m_sync_pts;
+	uint64_t m_compare_old_pts;
+	uint m_sync_cnt;
+	uint m_wait_frame;
+
+	uint64_t m_nTotalFrame;
+	int m_nTotalSec;
+	int m_file_cnt;
 
 	int video_stream_idx;
 	int m_nAudioStream[MAX_AUDIO_STREAM];
@@ -95,7 +119,6 @@ private:
 
 	pthread_mutex_t *m_mutex_demuxer;
 	int m_nSpeed;
-	bool MoveSec(int nSec);
 	int open_codec_context(int *stream_idx, AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type);
 
 protected:

@@ -182,7 +182,26 @@ bool CCommMgr::RX()
 				{
 					for (int i = 0; i < m_nChannel; i++)
 					{
-						m_CDemuxer[i]->SetReverse();
+						m_bIsRerverse = m_CDemuxer[i]->SetReverse();
+					}
+
+					if (m_bIsRerverse == false)
+					{
+						cout << "[COMM] Set Reverse : " << m_bIsRerverse << endl;
+						uint64_t max_pts = 0;
+						for (int i = 0; i < m_nChannel; i++)
+						{
+							cout << "[COMM] Channel : " << i << ", PTS : " << m_CDemuxer[i]->GetCurrentPTS() << endl;
+							if (max_pts < m_CDemuxer[i]->GetCurrentPTS())
+							{
+								max_pts = m_CDemuxer[i]->GetCurrentPTS();
+							}
+						}
+						cout << "[COMM] sync pts : " << max_pts << endl;
+						for (int i = 0; i < m_nChannel; i++)
+						{
+							m_CDemuxer[i]->SetSyncPTS(max_pts);
+						}
 					}
 				}
 				else
@@ -215,6 +234,21 @@ bool CCommMgr::RX()
 					{
 						m_CDemuxer[i]->SetSpeed(m_nSpeed);
 					}
+
+					uint64_t max_pts = 0;
+					for (int i = 0; i < m_nChannel; i++)
+					{
+						cout << "[COMM] Channel : " << i << ", PTS : " << m_CDemuxer[i]->GetCurrentPTS() << endl;
+						if (max_pts < m_CDemuxer[i]->GetCurrentPTS())
+						{
+							max_pts = m_CDemuxer[i]->GetCurrentPTS();
+						}
+					}
+					cout << "[COMM] sync pts : " << max_pts << endl;
+					for (int i = 0; i < m_nChannel; i++)
+					{
+						m_CDemuxer[i]->SetSyncPTS(max_pts);
+					}
 				}
 				else
 				{
@@ -226,9 +260,19 @@ bool CCommMgr::RX()
 				//멈춤
 				if (m_bIsRunning)
 				{
+					uint64_t max_pts = 0;
 					for (int i = 0; i < m_nChannel; i++)
 					{
-						m_CDemuxer[i]->SetPause();
+						cout << "[COMM] Channel : " << i << ", PTS : " << m_CDemuxer[i]->GetCurrentPTS() << endl;
+						if (max_pts < m_CDemuxer[i]->GetCurrentPTS())
+						{
+							max_pts = m_CDemuxer[i]->GetCurrentPTS();
+						}
+					}
+					cout << "[COMM] sync pts : " << max_pts << endl;
+					for (int i = 0; i < m_nChannel; i++)
+					{
+						m_CDemuxer[i]->SetPause(max_pts);
 					}
 				}
 				else
@@ -245,6 +289,22 @@ bool CCommMgr::RX()
 					for (int i = 0; i < m_nChannel; i++)
 					{
 						m_CDemuxer[i]->SetMoveSec(m_nMoveSec);
+					}
+					usleep(100000);
+
+					uint64_t max_pts = 0;
+					for (int i = 0; i < m_nChannel; i++)
+					{
+						cout << "[COMM] Channel : " << i << ", PTS : " << m_CDemuxer[i]->GetCurrentPTS() << endl;
+						if (max_pts < m_CDemuxer[i]->GetCurrentPTS())
+						{
+							max_pts = m_CDemuxer[i]->GetCurrentPTS();
+						}
+					}
+					cout << "[COMM] sync pts : " << max_pts << endl;
+					for (int i = 0; i < m_nChannel; i++)
+					{
+						m_CDemuxer[i]->SetSyncPTS(max_pts);
 					}
 				}
 				else

@@ -4,10 +4,16 @@
 Json::Value GetOutputFileList(string basepath)
 {
 	Json::Reader reader;
+	Json::Reader sub_reader;
 	Json::Value root;
 	Json::Value info;
+	Json::Value meta;
 	Json::Value b;
+	Json::Value channel;
 	int idx = 0;
+	string infopath;
+	string metabase;
+	string metapath;
 	DIR *dir = opendir(basepath.c_str());
 	struct dirent *ent;
 	while ((ent = readdir(dir)) != NULL)
@@ -20,12 +26,20 @@ Json::Value GetOutputFileList(string basepath)
 				b["path"] = ent->d_name;
 #if 1
 				stringstream sstm;
-				string infopath;
+
 				sstm << basepath << "/" << ent->d_name << "/"
 					 << "info.json";
 				infopath = sstm.str();
 
-				cout << infopath << endl;
+				cout << "[MISC] file open : " << infopath << endl;
+
+				sstm.str("");
+
+				sstm << basepath << "/" << ent->d_name << "/";
+
+				string metabase = sstm.str();
+				sstm.str();
+				sstm.str("");
 
 				ifstream ifs(infopath, ifstream::binary);
 				if (!reader.parse(ifs, info, true))
@@ -41,9 +55,57 @@ Json::Value GetOutputFileList(string basepath)
 				}
 #endif
 
+				DIR *sub_dir = opendir(metabase.c_str());
+				struct dirent *sub_ent;
+				while ((sub_ent = readdir(sub_dir)) != NULL)
+				{
+					int sub_idx = 0;
+					if (strcmp(sub_ent->d_name, ".") != 0 && strcmp(sub_ent->d_name, "..") != 0)
+					{
+						if (sub_ent->d_type == DT_DIR)
+						{
+							uint64_t total_frame = 0;
+							sstm << metabase << sub_ent->d_name << "/"
+								 << "meta.json";
+							metapath = sstm.str();
+							sstm.str("");
+
+							//cout << "[MISC] file open : " << metapath << endl;
+
+							ifstream ifs(metapath, ifstream::binary);
+							if (!sub_reader.parse(ifs, meta, true))
+							{
+								ifs.close();
+								cout << "[MISC] Failed to parse " << metapath << endl
+									 << reader.getFormatedErrorMessages() << endl;
+							}
+							else
+							{
+								ifs.close();
+								//b["bit_state"] = info["info"]["bit_state"];
+								for (int i = 0; i < meta["files"].size(); i++)
+								{
+									total_frame += meta["files"][i]["frame"].asInt64();
+								}
+								channel["total_frame"] = total_frame;
+								channel["filename"] = metapath;
+								channel["idx"] = sub_ent->d_name;
+								channel["num"] = meta["num"];
+								channel["den"] = meta["den"];
+								//channel["idx"] = sub_idx;
+								total_frame = 0;
+								//sub_idx++;
+							}
+							b["channels"].append(channel);
+							channel.clear();
+						}
+					}
+				}
 				root["files"].append(b);
-				idx++;
+				b.clear();
+				closedir(sub_dir);
 			}
+			idx++;
 		}
 	}
 	closedir(dir);

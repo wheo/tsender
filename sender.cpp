@@ -139,7 +139,7 @@ bool CSender::Send()
 	double fTime = m_info["fps"].asDouble();
 	double num = m_info["num"].asDouble();
 	double den = m_info["den"].asDouble();
-	double target_time = num / den * 1000000;
+	double target_time = num / den * AV_TIME_BASE;
 
 	int64_t acc_time = 0;
 	int64_t tick_diff = 0;
@@ -181,7 +181,7 @@ bool CSender::Send()
 				}
 				else
 				{
-					//cout << "[SENDER.ch" << m_nChannel << "] send_bitstream success" << endl;
+					cout << "[SENDER.ch" << m_nChannel << "] send_bitstream success" << endl;
 				}
 				//av_packet_unref(&pkt);
 				m_queue->Ret(&pkt);
@@ -209,7 +209,7 @@ bool CSender::Send()
 
 		if (m_info["type"].asString() == "video")
 		{
-			target_time = num / den * 1000000 / m_nSpeed;
+			target_time = num / den * AV_TIME_BASE / m_nSpeed;
 		}
 
 		while (tick_diff < target_time)

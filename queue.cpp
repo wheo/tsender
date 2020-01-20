@@ -164,7 +164,6 @@ void *CQueue::GetAudio()
 
 	while (pe->len > 0)
 	{
-
 		cout << "[QUEUE.ch" << m_nChannel << "] m_nReadAudioPos : " << m_nReadAudioPos << ", pe->len : " << pe->len << endl;
 		pthread_mutex_lock(&m_mutex);
 		if (pe->len)
