@@ -6,6 +6,7 @@
 #include "sender.h"
 #include "queue.h"
 #include "thumbnail.h"
+#include "switch.h"
 
 #define AUDIO_BUFF_SIZE 24
 
@@ -36,8 +37,9 @@ public:
 	bool GetChannelFiles(string path);
 	bool GetChannelFilesRerverse(string path);
 	Json::Value GetThumbnail(int nSec);
-	int Demux(string src_filename);
-	int DemuxRerverse(string src_filename);
+	//int Demux(string src_filename);
+	int Demux(Json::Value files);
+	//int DemuxRerverse(string src_filename);
 	bool SetMoveSec(int nSec);
 	bool Reverse();
 
@@ -59,6 +61,7 @@ protected:
 private:
 	//mux_cfg_s m_mux_cfg;
 	CThumbnail *m_CThumbnail;
+	CSwitch *m_CSwitch;
 
 	int m_nRecSec;	 // 얼마나 녹화를 할 것인가
 	int m_nFrameCount; // 프레임 수
@@ -86,6 +89,7 @@ private:
 	AVStream *video_stream = NULL, *audio_stream = NULL;
 
 	int refcount;
+	bool m_is_skip;
 
 	Json::Value json;
 

@@ -95,7 +95,6 @@ bool CCore::Create()
 				else
 				{
 					ifs_init.close();
-					Json::Value init;
 				}
 			}
 		}
@@ -114,6 +113,7 @@ void CCore::Run()
 		this_thread::sleep_for(milliseconds(1000));
 	}
 }
+
 #if 0
 bool CCore::GetOutputs(string basepath) {
 	string path;

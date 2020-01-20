@@ -35,7 +35,14 @@ bool CCommMgr::SetSocket()
 	m_sdRecv = socket(PF_INET, SOCK_DGRAM, 0);
 	if (m_sdRecv < 0)
 	{
-		_d("[COMM] Failed to open rx socket\n");
+		cout << "[COMM] Failed to open rx socket" << endl;
+		return false;
+	}
+
+	m_sdSend = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
+	if (m_sdSend < 0)
+	{
+		cout << "[COMM] failed to open tx socket" << endl;
 		return false;
 	}
 
@@ -48,7 +55,7 @@ bool CCommMgr::SetSocket()
 
 	if (bind(m_sdRecv, (const sockaddr *)&sin, sizeof(sin)) < 0)
 	{
-		_d("[COMM] Failed to bind to port %d\n", sin.sin_port);
+		cout << "[COMM] Failed to bind to rx port : " << sin.sin_port << endl;
 		return false;
 	}
 
@@ -61,12 +68,6 @@ bool CCommMgr::SetSocket()
 		return false;
 	}
 
-	m_sdSend = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
-	if (m_sdSend < 0)
-	{
-		_d("[COMM] failed to open tx socket\n");
-		return false;
-	}
 	return true;
 }
 
@@ -120,6 +121,8 @@ bool CCommMgr::RX()
 			continue;
 		}
 		cout << "[COMM] recv size : " << rd << endl;
+		//수신 받은 sin 구조체를 전역으로 설정
+		m_sin = sin;
 
 		//send echo
 		TX(buff, rd);
@@ -135,6 +138,7 @@ bool CCommMgr::RX()
 				//cout << root["info"]["target"].asString() << endl;
 
 				m_attr["target"] = root["info"]["target"].asString();
+				m_attr["bit_state"] = root["info"]["bit_state"];
 				if (!m_bIsRunning)
 				{
 					m_bIsRunning = true;
@@ -178,7 +182,6 @@ bool CCommMgr::RX()
 				{
 					for (int i = 0; i < m_nChannel; i++)
 					{
-						cout << "[COMM] Set Reverse" << m_nSpeed << endl;
 						m_CDemuxer[i]->SetReverse();
 					}
 				}
@@ -208,7 +211,6 @@ bool CCommMgr::RX()
 				{
 					//실행 중이어야 배속 재생이 됨
 					m_nSpeed = root["info"]["speed"].asInt();
-					cout << "[COMM] Set speed : " << m_nSpeed;
 					for (int i = 0; i < m_nChannel; i++)
 					{
 						m_CDemuxer[i]->SetSpeed(m_nSpeed);
@@ -301,9 +303,13 @@ bool CCommMgr::RX()
 				sstm.str("");
 				sstm << "rm -rf " << target;
 				cout << sstm.str() << endl;
-				if (!target.empty())
+				if (target.length() > 0)
 				{
-					system(sstm.str().c_str()); // 실제 삭제
+					//첫 문자가 / 면 안됨, 1글자여서도 안됨 (삭제 사고 방지)
+					if (target.substr(0, 1).compare("/") != 0)
+					{
+						system(sstm.str().c_str()); // 실제 삭제
+					}
 				}
 				root = GetOutputFileList(m_attr["file_dst"].asString());
 				root["cmd"] = "get_play_delete"; // key
@@ -326,17 +332,19 @@ bool CCommMgr::TX(char *buff, int size)
 		return false;
 	}
 
-	struct sockaddr_in sin;
-	socklen_t sin_size = sizeof(sin);
+	socklen_t sin_size = sizeof(m_sin);
 
+#if 0
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = inet_addr(m_attr["udp_target_ip"].asString().c_str());
 	sin.sin_port = htons(m_attr["udp_target_port"].asInt());
+#endif
 
+	m_sin.sin_port = htons(m_nPort);
 	//cout << "[COMM] buff size : " << sizeof(buff) << endl;
 
-	sendto(m_sdSend, buff, size, 0, (struct sockaddr *)&sin, sin_size);
-	cout << "[COMM] ip : " << inet_ntoa(sin.sin_addr) << " port : " << m_attr["udp_recv_port"].asInt() << ", send message(" << size << ") : " << buff << endl;
+	sendto(m_sdSend, buff, size, 0, (struct sockaddr *)&m_sin, sin_size);
+	cout << "[COMM] ip : " << inet_ntoa(m_sin.sin_addr) << " port : " << htons(m_sin.sin_port) << ", send message(" << size << ") : " << buff << endl;
 }
 
 void CCommMgr::Delete()
@@ -345,7 +353,7 @@ void CCommMgr::Delete()
 	for (int i = 0; i < m_nChannel; i++)
 	{
 		SAFE_DELETE(m_CDemuxer[i]);
-		cout << "[COMM] channel " << i << " has been SAFE_DELETE" << endl;
+		cout << "[COMM] channel " << i << " has been deleted" << endl;
 	}
 }
 

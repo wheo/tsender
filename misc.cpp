@@ -3,7 +3,9 @@
 
 Json::Value GetOutputFileList(string basepath)
 {
+	Json::Reader reader;
 	Json::Value root;
+	Json::Value info;
 	Json::Value b;
 	int idx = 0;
 	DIR *dir = opendir(basepath.c_str());
@@ -16,6 +18,29 @@ Json::Value GetOutputFileList(string basepath)
 			{
 				b["idx"] = idx;
 				b["path"] = ent->d_name;
+#if 1
+				stringstream sstm;
+				string infopath;
+				sstm << basepath << "/" << ent->d_name << "/"
+					 << "info.json";
+				infopath = sstm.str();
+
+				cout << infopath << endl;
+
+				ifstream ifs(infopath, ifstream::binary);
+				if (!reader.parse(ifs, info, true))
+				{
+					ifs.close();
+					cout << "[MISC] Failed to parse info.json" << endl
+						 << reader.getFormatedErrorMessages() << endl;
+				}
+				else
+				{
+					ifs.close();
+					b["bit_state"] = info["info"]["bit_state"];
+				}
+#endif
+
 				root["files"].append(b);
 				idx++;
 			}

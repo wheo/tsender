@@ -96,6 +96,7 @@ GROUP.01.SRC = main.cpp\
 			demuxer.cpp\
 			thumbnail.cpp\
 			sender.cpp\
+			switch.cpp\
 			jsoncpp.cpp\
 			queue.cpp
 GROUP.01.OBJ = $(addprefix $(BUILD_DIR)/,$(GROUP.01.SRC:.cpp=.o))
