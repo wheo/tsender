@@ -154,6 +154,15 @@ bool CCommMgr::RX()
 				else
 				{
 					cout << "[COMM] is running" << endl;
+					for (int i = 0; i < m_nChannel; i++)
+					{
+						if (m_CDemuxer[i])
+						{
+							m_CDemuxer[i]->SetPause(false);
+							m_CDemuxer[i]->SetReverse(false);
+							m_CDemuxer[i]->SetSpeed(1);
+						}
+					}
 				}
 			}
 			else if (root["cmd"] == "play_reverse")
@@ -198,7 +207,7 @@ bool CCommMgr::RX()
 							}
 						}
 						cout << "[COMM] sync pts : " << max_pts << endl;
-						for (int i = 0; i < m_nChannel; i++)
+						for (int i = 0; i < 3; i++)
 						{
 							m_CDemuxer[i]->SetSyncPTS(max_pts);
 						}
@@ -245,7 +254,7 @@ bool CCommMgr::RX()
 						}
 					}
 					cout << "[COMM] sync pts : " << max_pts << endl;
-					for (int i = 0; i < m_nChannel; i++)
+					for (int i = 0; i < 4; i++)
 					{
 						m_CDemuxer[i]->SetSyncPTS(max_pts);
 					}
@@ -272,7 +281,11 @@ bool CCommMgr::RX()
 					cout << "[COMM] sync pts : " << max_pts << endl;
 					for (int i = 0; i < m_nChannel; i++)
 					{
-						m_CDemuxer[i]->SetPause(max_pts);
+						m_CDemuxer[i]->SetPause();
+					}
+					for (int i = 0; i < 4; i++)
+					{
+						m_CDemuxer[i]->SetSyncPTS(max_pts);
 					}
 				}
 				else
@@ -293,7 +306,7 @@ bool CCommMgr::RX()
 					usleep(100000);
 
 					uint64_t max_pts = 0;
-					for (int i = 0; i < m_nChannel; i++)
+					for (int i = 0; i < 4; i++)
 					{
 						cout << "[COMM] Channel : " << i << ", PTS : " << m_CDemuxer[i]->GetCurrentPTS() << endl;
 						if (max_pts < m_CDemuxer[i]->GetCurrentPTS())
@@ -302,7 +315,7 @@ bool CCommMgr::RX()
 						}
 					}
 					cout << "[COMM] sync pts : " << max_pts << endl;
-					for (int i = 0; i < m_nChannel; i++)
+					for (int i = 0; i < 4; i++)
 					{
 						m_CDemuxer[i]->SetSyncPTS(max_pts);
 					}

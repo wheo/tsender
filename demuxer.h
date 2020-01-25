@@ -23,11 +23,13 @@ public:
 	bool Create(Json::Value info, Json::Value attr, int nChannel);
 	void Delete();
 	void SetSpeed(int speed);
-	void SetPause(uint64_t pts);
+	void SetPause();
+	void SetPause(bool state);
 	void SetSyncPTS(uint64_t pts);
 
 	void SyncCheck();
 	bool SetReverse();
+	bool SetReverse(bool state);
 	int GetSpeed() { return m_nSpeed; }
 
 	bool SetMutex(pthread_mutex_t *mutex_sender);
@@ -63,6 +65,7 @@ protected:
 	bool m_bIsRerverse;
 	int64_t m_currentDuration;
 	int64_t nFrame;
+	int64_t m_start_pts;
 
 private:
 	//mux_cfg_s m_mux_cfg;
@@ -71,6 +74,7 @@ private:
 
 	int m_nRecSec;	 // 얼마나 녹화를 할 것인가
 	int m_nFrameCount; // 프레임 수
+	int m_nAudioCount; // 오디오 수
 	int m_file_idx;	// 파일 인덱스 번호
 	int m_sock;		   // 소켓 디스크립터
 	bool m_Wait;

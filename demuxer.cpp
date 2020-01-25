@@ -53,8 +53,11 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 	m_file_cnt = 0;
 	m_files = NULL;
 	m_wait_frame = 0;
+	m_start_pts = 0;
 	uint num = m_info["num"].asUInt();
 	uint den = m_info["den"].asUInt();
+
+	m_nAudioCount = 0;
 
 	m_wait_frame = den / num;
 	refcount = 0; // 1과 0의 차이를 알아보자
@@ -285,6 +288,7 @@ int CDemuxer::Demux(Json::Value files)
 		}
 
 		value = files[i];
+		m_start_pts = 0;
 
 		src_filename = value["name"].asString();
 		ifstream ifs;
@@ -303,6 +307,11 @@ int CDemuxer::Demux(Json::Value files)
 		uint64_t old_pts = 0;
 		uint16_t skip_cnt = 0;
 		uint64_t last_frame = value["frame"].asInt64();
+
+		if (last_frame == 0)
+		{
+			break;
+		}
 
 		cout << "[DEMUXER.ch" << m_nChannel << "] " << src_filename << ", " << target_time << ", " << num << ", " << den << ", type : " << type << endl;
 
@@ -431,14 +440,16 @@ int CDemuxer::Demux(Json::Value files)
 						break;
 					}
 				}
+#if 0
 				else if (m_IsForcePause == false)
 				{
 					m_nFrameCount++;
 				}
-
+#endif
 				SyncCheck();
 
-				if (m_Wait == false)
+				_d("forcepause : %s, reverse : %s\n", m_IsForcePause ? "true" : "false", m_bIsRerverse ? "true" : "false");
+				if (m_Wait == false && m_IsForcePause == false)
 				{
 					av_packet_unref(&pkt);
 					av_init_packet(&pkt);
@@ -455,7 +466,12 @@ int CDemuxer::Demux(Json::Value files)
 					}
 					else
 					{
+						m_nFrameCount++;
 						m_current_pts = pkt.pts;
+						if (m_start_pts == 0)
+						{
+							m_start_pts = pkt.pts;
+						}
 					}
 
 					if ((ret = av_bsf_send_packet(m_bsfc, &pkt)) < 0)
@@ -509,7 +525,7 @@ int CDemuxer::Demux(Json::Value files)
 					else
 					{
 #if 1
-						cout << "[DEMUXER.ch" << m_nChannel << "] sync_pts (" << m_sync_pts << ") send_bitstream (" << m_current_pts << ") sended, pause(" << m_Wait << "), nFrame : " << m_nFrameCount << endl;
+						cout << "[DEMUXER.ch" << m_nChannel << "] sync_pts (" << m_sync_pts << ") send_bitstream (" << m_current_pts << ") sended, ForcePause(" << m_IsForcePause << "), nFrame : " << m_nFrameCount << endl;
 #endif
 					}
 				}
@@ -519,10 +535,30 @@ int CDemuxer::Demux(Json::Value files)
 			}
 			else if (type == "audio")
 			{
-				if (!m_Wait && !m_bIsRerverse)
+				if (m_IsForcePause == false && m_bIsRerverse == false && m_nSpeed == 1)
 				{
 					char audio_buf[AUDIO_BUFF_SIZE];
+
+					if (m_IsMove == true)
+					{
+						m_IsMove = false;
+						i = m_nMoveIdx - 1;
+						break;
+					}
+
+					if (m_nMoveFrame > 0)
+					{
+						m_nAudioCount = m_nMoveFrame;
+						m_nMoveFrame = m_nMoveFrame - (last_frame * m_nMoveIdx);
+
+						cout << "[DEMUXER.ch" << m_nChannel << "] move audio frame (" << m_nMoveFrame << ")" << endl;
+						//MoveFrame(m_nMoveFrame);
+						ifs.seekg(m_nMoveFrame * AUDIO_BUFF_SIZE);
+						m_nMoveFrame = 0;
+					}
+
 					ifs.read(audio_buf, AUDIO_BUFF_SIZE);
+					m_nAudioCount++;
 
 					//legacy code
 					//m_CQueue->PutAudio(audio_buf, AUDIO_BUFF_SIZE);
@@ -532,8 +568,8 @@ int CDemuxer::Demux(Json::Value files)
 					}
 					else
 					{
-#if 0
-						cout << "[DEMUXER.ch" << m_nChannel << "] send_audiotream sended(" << AUDIO_BUFF_SIZE << ")" << endl;
+#if 1
+						cout << "[DEMUXER.ch" << m_nChannel << "] send_audiotream sended(" << AUDIO_BUFF_SIZE << "), AudioCount : " << m_nAudioCount << endl;
 #endif
 					}
 					if (ifs.eof())
@@ -543,6 +579,10 @@ int CDemuxer::Demux(Json::Value files)
 						break;
 					}
 					//if meet eof then break
+				}
+				else
+				{
+					//cout << "[DEMUXER.ch" << m_nChannel << "] audio sync required" << endl;
 				}
 			}
 
@@ -659,14 +699,7 @@ bool CDemuxer::Reverse()
 	int64_t tm = (int64_t)(fTime * AV_TIME_BASE);
 	tm = av_rescale_q(tm, timeBaseQ, timeBase);
 
-//_d("[REVERSE.ch%d] (tm : %lld)\n", m_nChannel, tm);
-#if 0
-	if (tm < num * 30)
-	{
-		tm = num * 30;
-		return false;
-	}
-#endif
+	//_d("[REVERSE.ch%d] (tm : %lld)\n", m_nChannel, tm);
 
 	//_d("[channel.%d] reverse frame count : %d, ftime : %.3f\n", m_nChannel, m_nFrameCount, fTime);
 
@@ -674,14 +707,33 @@ bool CDemuxer::Reverse()
 	{
 		//avcodec_flush_buffers(fmt_ctx->streams[0]->codec);
 		_d("[DEMUXER.ch%d] m_nFrameCount : %d, fps : %.3f, tm : %lld, fTime : %.3f\n", m_nChannel, m_nFrameCount, m_fps, tm, fTime);
-		ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, AVSEEK_FLAG_FRAME);
+		if (m_nChannel < 4)
+		{
+			ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, AVSEEK_FLAG_FRAME);
+		}
+		else
+		{
+			ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, AVSEEK_FLAG_BYTE);
+		}
 		if (ret < 0)
 		{
 			_d("[REVERSE.ch%d] ret : %d, not work(tm : %lld)\n", m_nChannel, ret, tm);
 			return false;
 		}
 	}
-	m_nFrameCount--;
+	m_nFrameCount = m_nFrameCount - 2;
+
+	if (m_nFrameCount < 1)
+	{
+		return false;
+	}
+#if 0
+	if (m_start_pts < tm && m_start_pts != 0)
+	{
+		_d("[REVERSE.ch%d] start_pts : %lld, not work(tm : %lld)\n", m_nChannel, m_start_pts, tm);
+		return false;
+	}
+#endif
 	return true;
 }
 
@@ -847,11 +899,18 @@ void CDemuxer::SetSpeed(int speed)
 	cout << "[DEMUXER.ch" << m_nChannel << "] Set speed : " << m_nSpeed << endl;
 }
 
-void CDemuxer::SetPause(uint64_t pts)
+void CDemuxer::SetPause()
 {
 	m_IsForcePause = !m_IsForcePause;
 	//m_IsPause = !m_IsPause;
-	m_sync_pts = pts;
+
+	cout << "[DEMUXER.ch" << m_nChannel << "] Set Pause : " << m_IsForcePause << endl;
+}
+
+void CDemuxer::SetPause(bool state)
+{
+	m_IsForcePause = state;
+	//m_IsPause = !m_IsPause;
 
 	cout << "[DEMUXER.ch" << m_nChannel << "] Set Pause : " << m_IsForcePause << endl;
 }
@@ -881,12 +940,17 @@ void CDemuxer::SyncCheck()
 			m_sync_cnt++;
 			if (m_sync_cnt > m_wait_frame)
 			{
+#if 0
 				if (m_sync_pts <= m_current_pts)
 				{
 					m_Wait = false;
 					m_sync_pts = 0;
 					m_sync_cnt = 0;
 				}
+#endif
+				m_Wait = false;
+				m_sync_pts = 0;
+				m_sync_cnt = 0;
 			}
 		}
 	}
@@ -895,6 +959,13 @@ void CDemuxer::SyncCheck()
 bool CDemuxer::SetReverse()
 {
 	m_bIsRerverse = !m_bIsRerverse;
+	cout << "[DEMUXER.ch" << m_nChannel << "] Set Reverse : " << m_bIsRerverse << endl;
+	return m_bIsRerverse;
+}
+
+bool CDemuxer::SetReverse(bool state)
+{
+	m_bIsRerverse = state;
 	cout << "[DEMUXER.ch" << m_nChannel << "] Set Reverse : " << m_bIsRerverse << endl;
 	return m_bIsRerverse;
 }

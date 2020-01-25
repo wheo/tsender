@@ -5,7 +5,7 @@
 #include "demuxer.h"
 
 #define MAX_NUM_SIM_CLIENT 64
-#define MAX_NUM_CHANNEL 6
+#define MAX_NUM_CHANNEL 8
 #define READ_SIZE 1500
 
 class CCommBase // Class for comm. module base
