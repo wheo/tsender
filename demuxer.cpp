@@ -286,6 +286,12 @@ int CDemuxer::Demux(Json::Value files)
 		{
 			break;
 		}
+		uint64_t last_frame = value["frame"].asInt64();
+
+		if (last_frame == 0)
+		{
+			break;
+		}
 
 		value = files[i];
 		m_start_pts = 0;
@@ -306,12 +312,6 @@ int CDemuxer::Demux(Json::Value files)
 
 		uint64_t old_pts = 0;
 		uint16_t skip_cnt = 0;
-		uint64_t last_frame = value["frame"].asInt64();
-
-		if (last_frame == 0)
-		{
-			break;
-		}
 
 		cout << "[DEMUXER.ch" << m_nChannel << "] " << src_filename << ", " << target_time << ", " << num << ", " << den << ", type : " << type << endl;
 
@@ -446,8 +446,6 @@ int CDemuxer::Demux(Json::Value files)
 					m_nFrameCount++;
 				}
 #endif
-				SyncCheck();
-
 				_d("forcepause : %s, reverse : %s\n", m_IsForcePause ? "true" : "false", m_bIsRerverse ? "true" : "false");
 				if (m_Wait == false && m_IsForcePause == false)
 				{
@@ -600,6 +598,8 @@ int CDemuxer::Demux(Json::Value files)
 			begin = end;
 			tick_diff = 0;
 		}
+
+		//전체 타이머 하나 돌려야함
 
 		//this_thread::sleep_for(microseconds(100000));
 		_d("[%d] fmt_ctx : %x\n", m_nChannel, fmt_ctx);
