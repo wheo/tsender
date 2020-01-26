@@ -244,6 +244,8 @@ bool CCommMgr::RX()
 						m_CDemuxer[i]->SetSpeed(m_nSpeed);
 					}
 
+#if 0 
+
 					uint64_t max_pts = 0;
 					for (int i = 0; i < m_nChannel; i++)
 					{
@@ -258,6 +260,7 @@ bool CCommMgr::RX()
 					{
 						m_CDemuxer[i]->SetSyncPTS(max_pts);
 					}
+#endif
 				}
 				else
 				{
@@ -303,6 +306,7 @@ bool CCommMgr::RX()
 					{
 						m_CDemuxer[i]->SetMoveSec(m_nMoveSec);
 					}
+#if 0
 					usleep(100000);
 
 					uint64_t max_pts = 0;
@@ -319,6 +323,7 @@ bool CCommMgr::RX()
 					{
 						m_CDemuxer[i]->SetSyncPTS(max_pts);
 					}
+#endif
 				}
 				else
 				{

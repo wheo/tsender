@@ -27,7 +27,7 @@ public:
 	void SetPause(bool state);
 	void SetSyncPTS(uint64_t pts);
 
-	void SyncCheck();
+	//void SyncCheck();
 	bool SetReverse();
 	bool SetReverse(bool state);
 	int GetSpeed() { return m_nSpeed; }
@@ -47,7 +47,7 @@ public:
 	//int DemuxRerverse(string src_filename);
 	bool SetMoveSec(int nSec);
 	bool Reverse();
-	bool MoveFrame(int nFrame);
+	bool SeekFrame(int nFrame);
 	uint64_t GetCurrentPTS() { return m_current_pts; }
 	int FindFileIndexFromFrame(uint64_t nFrame);
 
@@ -61,22 +61,22 @@ protected:
 	char m_strShmPrefix[32];
 	int m_nRead;
 	int m_nWrite;
-	double m_fps;
+	//double m_fps;
 	bool m_bIsRerverse;
 	int64_t m_currentDuration;
 	int64_t nFrame;
-	int64_t m_start_pts;
+	//int64_t m_start_pts;
 
 private:
 	//mux_cfg_s m_mux_cfg;
 	CThumbnail *m_CThumbnail;
 	CSwitch *m_CSwitch;
 
-	int m_nRecSec;	 // 얼마나 녹화를 할 것인가
-	int m_nFrameCount; // 프레임 수
-	int m_nAudioCount; // 오디오 수
-	int m_file_idx;	// 파일 인덱스 번호
-	int m_sock;		   // 소켓 디스크립터
+	int m_nRecSec;			// 얼마나 녹화를 할 것인가
+	uint64_t m_nFrameCount; // 프레임 수
+	uint64_t m_nAudioCount; // 오디오 수
+	int m_file_idx;			// 파일 인덱스 번호
+	int m_sock;				// 소켓 디스크립터
 	bool m_Wait;
 
 	bool m_IsForcePause;
@@ -89,7 +89,7 @@ private:
 	AVPacket m_pkt;
 	AVFormatContext *fmt_ctx;
 	int m_index = 0;
-	int m_nMoveFrame;
+	int m_nSeekFrame;
 	int m_nMoveIdx;
 	//double m_fMoveLeftSec;
 	double m_fDuration;
@@ -98,7 +98,8 @@ private:
 	uint64_t m_sync_pts;
 	uint64_t m_compare_old_pts;
 	uint m_sync_cnt;
-	uint m_wait_frame;
+	uint64_t m_seek_pts;
+	//uint m_wait_frame;
 
 	uint64_t m_nTotalFrame;
 	int m_nTotalSec;
