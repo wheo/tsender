@@ -697,8 +697,8 @@ bool CDemuxer::SeekFrame(int nFrame)
 
 bool CDemuxer::Reverse()
 {
-	int num = m_info["num"].asInt();
-	int den = m_info["den"].asInt();
+	uint64_t num = m_info["num"].asUInt64();
+	uint64_t den = m_info["den"].asUInt64();
 
 	//int nFrame = m_nFrameCount;
 
@@ -733,7 +733,7 @@ bool CDemuxer::Reverse()
 		}
 		else
 		{
-			ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, AVSEEK_FLAG_BYTE);
+			ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, AVSEEK_FLAG_FRAME);
 		}
 		if (ret < 0)
 		{
