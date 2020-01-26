@@ -254,7 +254,7 @@ int CDemuxer::Demux(Json::Value files)
 {
 	string src_filename = "";
 	Json::Value value;
-	m_nFrameCount = 0;
+	//m_nFrameCount = 0;
 	m_seek_pts = 0;
 	// file 데이터 전역변수로 복사
 	m_files = files;
@@ -273,9 +273,9 @@ int CDemuxer::Demux(Json::Value files)
 
 	cout << "[DEMUXER.ch" << m_nChannel << "] totalFrame : " << m_nTotalFrame << ", totalSec : " << m_nTotalSec << ", filecnt : " << m_file_cnt << endl;
 
-	high_resolution_clock::time_point start_pts;
+	m_start_pts = high_resolution_clock::now();
 	high_resolution_clock::time_point current_pts;
-	start_pts = high_resolution_clock::now();
+
 	for (int i = 0; i < files.size(); i++)
 	{
 		value = files[i];
@@ -411,7 +411,7 @@ int CDemuxer::Demux(Json::Value files)
 		while (!m_bExit)
 		{
 			current_pts = high_resolution_clock::now();
-			now_pts = duration_cast<microseconds>(current_pts - start_pts).count();
+			now_pts = duration_cast<microseconds>(current_pts - m_start_pts).count();
 			now_pts = m_seek_pts + (now_pts * m_nSpeed);
 			out_speed_pts = out_pts * m_nSpeed;
 			this_thread::sleep_for(microseconds(1));
@@ -466,13 +466,14 @@ int CDemuxer::Demux(Json::Value files)
 					}
 					else
 					{
-						m_nFrameCount++;
+						//m_nFrameCount++;
 
 						AVStream *pStream = fmt_ctx->streams[0];
 						AVRational timeBase = pStream->time_base;
 						out_pts = pkt.pts * AV_TIME_BASE / timeBase.den;
 
-						cout << "[DEMUXER.ch" << m_nChannel << "] frame : " << m_nFrameCount << ", pts : " << pkt.pts << ", now_tick : " << now_pts << ", out_pts : " << out_pts << " (" << timeBase.num << "/" << timeBase.den << ")" << endl;
+						//cout << "[DEMUXER.ch" << m_nChannel << "] frame : " << m_nFrameCount << ", pts : " << pkt.pts << ", now_tick : " << now_pts << ", out_pts : " << out_pts << " (" << timeBase.num << "/" << timeBase.den << ")" << endl;
+						cout << "[DEMUXER.ch" << m_nChannel << "] pts : " << pkt.pts << ", now_tick : " << now_pts << ", out_pts : " << out_pts << " (" << timeBase.num << "/" << timeBase.den << ")" << endl;
 					}
 
 					if ((ret = av_bsf_send_packet(m_bsfc, &pkt)) < 0)
@@ -539,7 +540,7 @@ int CDemuxer::Demux(Json::Value files)
 					}
 					else
 					{
-						cout << "[DEMUXER.ch" << m_nChannel << "] send_bitstream (" << pkt.pts << ") sended, nFrame : " << m_nFrameCount << endl;
+						cout << "[DEMUXER.ch" << m_nChannel << "] send_bitstream (" << pkt.pts << ") sended" << endl;
 					}
 				}
 				else if (type == "audio")
@@ -687,9 +688,10 @@ bool CDemuxer::SeekFrame(int nFrame)
 		ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, AVSEEK_FLAG_FRAME);
 		_d("[DEMUXER.ch%d] ret : %d , timebaseQ : %d/%d, timebase : %d/%d\n", m_nChannel, ret, timeBaseQ.num, timeBaseQ.den, timeBase.num, timeBase.den);
 	}
-	m_nFrameCount = nFrame;
+	//m_nFrameCount = nFrame;
 	m_seek_pts = tm * AV_TIME_BASE / timeBase.den;
-	cout << "[DEMUXER.ch" << m_nChannel << "] Set m_nFrameCount : " << m_nFrameCount << endl;
+	m_start_pts = high_resolution_clock::now();
+	//cout << "[DEMUXER.ch" << m_nChannel << "] Set m_nFrameCount : " << m_nFrameCount << endl;
 	//m_nMoveSec = 0;
 }
 
@@ -698,7 +700,7 @@ bool CDemuxer::Reverse()
 	int num = m_info["num"].asInt();
 	int den = m_info["den"].asInt();
 
-	int nFrame = m_nFrameCount;
+	//int nFrame = m_nFrameCount;
 
 	int ret = 0;
 	double fTime = 0;
@@ -723,7 +725,8 @@ bool CDemuxer::Reverse()
 	if (m_nChannel < 6)
 	{
 		//avcodec_flush_buffers(fmt_ctx->streams[0]->codec);
-		_d("[DEMUXER.ch%d] m_nFrameCount : %d, tm : %lld, fTime : %.3f\n", m_nChannel, m_nFrameCount, tm, fTime);
+		//_d("[DEMUXER.ch%d] m_nFrameCount : %d, tm : %lld, fTime : %.3f\n", m_nChannel, m_nFrameCount, tm, fTime);
+		_d("[DEMUXER.ch%d] tm : %lld, fTime : %.3f\n", m_nChannel, tm, fTime);
 		if (m_nChannel < 4)
 		{
 			ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, AVSEEK_FLAG_FRAME);
@@ -738,13 +741,13 @@ bool CDemuxer::Reverse()
 			return false;
 		}
 	}
-	m_nFrameCount = m_nFrameCount - 2;
-
+	//m_nFrameCount = m_nFrameCount - 2;
+#if 0
 	if (m_nFrameCount < 1)
 	{
 		return false;
 	}
-#if 0
+
 	if (m_start_pts < tm && m_start_pts != 0)
 	{
 		_d("[REVERSE.ch%d] start_pts : %lld, not work(tm : %lld)\n", m_nChannel, m_start_pts, tm);
