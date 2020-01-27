@@ -102,6 +102,10 @@ private:
 	high_resolution_clock::time_point m_start_pts;
 	//uint m_wait_frame;
 
+	uint64_t m_file_first_pts;
+	uint m_reverse_count;
+	uint64_t m_reverse_pts;
+
 	uint64_t m_nTotalFrame;
 	int m_nTotalSec;
 	int m_file_cnt;

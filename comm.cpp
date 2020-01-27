@@ -194,6 +194,7 @@ bool CCommMgr::RX()
 						m_bIsRerverse = m_CDemuxer[i]->SetReverse();
 					}
 
+#if 0
 					if (m_bIsRerverse == false)
 					{
 						cout << "[COMM] Set Reverse : " << m_bIsRerverse << endl;
@@ -212,6 +213,7 @@ bool CCommMgr::RX()
 							m_CDemuxer[i]->SetSyncPTS(max_pts);
 						}
 					}
+#endif
 				}
 				else
 				{

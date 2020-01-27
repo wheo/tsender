@@ -52,6 +52,8 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 	m_nTotalSec = 0;
 	m_file_cnt = 0;
 	m_files = NULL;
+	m_file_first_pts = 0;
+	m_reverse_count = 0;
 	uint64_t num = m_info["num"].asUInt64();
 	uint64_t den = m_info["den"].asUInt64();
 
@@ -90,7 +92,6 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 		Start();
 	}
 #endif
-
 	return true;
 }
 
@@ -266,12 +267,13 @@ int CDemuxer::Demux(Json::Value files)
 	}
 
 	int codec = m_attr["codec"].asInt(); // 0 : H264, 1 : HEVC
-	double num = m_info["num"].asDouble();
-	double den = m_info["den"].asDouble();
+	uint64_t num = m_info["num"].asDouble();
+	uint64_t den = m_info["den"].asDouble();
 
-	m_nTotalSec = m_nTotalFrame * num / den;
+	//m_nTotalSec = m_nTotalFrame * num / den;
 
-	cout << "[DEMUXER.ch" << m_nChannel << "] totalFrame : " << m_nTotalFrame << ", totalSec : " << m_nTotalSec << ", filecnt : " << m_file_cnt << endl;
+	//cout << "[DEMUXER.ch" << m_nChannel << "] totalFrame : " << m_nTotalFrame << ", totalSec : " << m_nTotalSec << ", filecnt : " << m_file_cnt << endl;
+	cout << "[DEMUXER.ch" << m_nChannel << "] totalFrame : " << m_nTotalFrame << ", filecnt : " << m_file_cnt << endl;
 
 	m_start_pts = high_resolution_clock::now();
 	high_resolution_clock::time_point current_pts;
@@ -300,8 +302,8 @@ int CDemuxer::Demux(Json::Value files)
 
 		string type = m_info["type"].asString();
 
-		double target_time = num / den * AV_TIME_BASE;
-		double fps = den / num;
+		//double target_time = num / den * AV_TIME_BASE;
+		//double fps = den / num;
 		double fTime;
 		int64_t tick_diff = 0;
 		int64_t now_pts = 0;
@@ -408,6 +410,8 @@ int CDemuxer::Demux(Json::Value files)
 		pkt.size = 0;
 		pkt.pts = 0;
 
+		m_file_first_pts = 0;
+
 		while (!m_bExit)
 		{
 			current_pts = high_resolution_clock::now();
@@ -433,24 +437,33 @@ int CDemuxer::Demux(Json::Value files)
 						SeekFrame(m_nSeekFrame);
 						m_nSeekFrame = 0;
 					}
-#if __OLD_SENDER
 
 					if (m_bIsRerverse)
 					{
-						m_sync_pts = 0;
+						if (m_reverse_count > 0)
+						{
+						}
+						else
+						{
+							m_reverse_pts = pkt.pts;
+							m_reverse_count = 0;
+						}
+						m_reverse_count++;
 						if (Reverse())
 						{
-							//true
+							//Reverse continue
+							cout << "[DEMUXER.ch" << m_nChannel << "] Reverse continue" << endl;
 						}
 						else
 						{
 							i = i - 2; // 직전 인덱스로 이동
 							//m_nFrameCount = last_frame;
-							cout << "[DEMUXER.ch" << m_nChannel << "set index : " << i << ", m_nFrameCount : " << m_nFrameCount << endl;
+							//m_reverse_count = 0;
+							cout << "[DEMUXER.ch" << m_nChannel << "] set index : " << i << endl;
 							break;
 						}
 					}
-#endif
+
 					av_packet_unref(&pkt);
 					av_init_packet(&pkt);
 
@@ -467,6 +480,11 @@ int CDemuxer::Demux(Json::Value files)
 					else
 					{
 						//m_nFrameCount++;
+
+						if (m_file_first_pts == 0)
+						{
+							m_file_first_pts = pkt.pts;
+						}
 
 						AVStream *pStream = fmt_ctx->streams[0];
 						AVRational timeBase = pStream->time_base;
@@ -687,10 +705,11 @@ bool CDemuxer::SeekFrame(int nFrame)
 		//avcodec_flush_buffers(fmt_ctx->streams[0]->codec);
 		ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, AVSEEK_FLAG_FRAME);
 		_d("[DEMUXER.ch%d] ret : %d , timebaseQ : %d/%d, timebase : %d/%d\n", m_nChannel, ret, timeBaseQ.num, timeBaseQ.den, timeBase.num, timeBase.den);
+		m_seek_pts = tm * AV_TIME_BASE / timeBase.den;
+		m_start_pts = high_resolution_clock::now();
 	}
+
 	//m_nFrameCount = nFrame;
-	m_seek_pts = tm * AV_TIME_BASE / timeBase.den;
-	m_start_pts = high_resolution_clock::now();
 	//cout << "[DEMUXER.ch" << m_nChannel << "] Set m_nFrameCount : " << m_nFrameCount << endl;
 	//m_nMoveSec = 0;
 }
@@ -701,8 +720,7 @@ bool CDemuxer::Reverse()
 	uint64_t den = m_info["den"].asUInt64();
 
 	//int nFrame = m_nFrameCount;
-
-	int ret = 0;
+#if 0
 	double fTime = 0;
 	AVStream *pStream = fmt_ctx->streams[0];
 	fTime = (((double)(nFrame)*pStream->avg_frame_rate.den) / pStream->avg_frame_rate.num) - 0.5;
@@ -715,45 +733,37 @@ bool CDemuxer::Reverse()
 	timeBaseQ.num = 1;
 	timeBaseQ.den = AV_TIME_BASE;
 
-	int64_t tm = (int64_t)(fTime * AV_TIME_BASE);
-	tm = av_rescale_q(tm, timeBaseQ, timeBase);
+	//int64_t tm = (int64_t)(fTime * AV_TIME_BASE);
+	//tm = av_rescale_q(tm, timeBaseQ, timeBase);
+#endif
 
-	//_d("[REVERSE.ch%d] (tm : %lld)\n", m_nChannel, tm);
+	//avcodec_flush_buffers(fmt_ctx->streams[0]->codec);
+	//_d("[DEMUXER.ch%d] m_nFrameCount : %d, tm : %lld, fTime : %.3f\n", m_nChannel, m_nFrameCount, tm, fTime);
+	int ret = 0;
+	AVStream *pStream = fmt_ctx->streams[0];
+	AVRational timeBase = pStream->time_base;
+	m_reverse_pts = m_reverse_pts - num;
 
-	//_d("[channel.%d] reverse frame count : %d, ftime : %.3f\n", m_nChannel, m_nFrameCount, fTime);
+	cout << "[" << m_nChannel << "] (" << timeBase.num << "/" << timeBase.den << ") reverse_pts : " << m_reverse_pts << ", reverse_count : " << m_reverse_count << endl;
 
 	if (m_nChannel < 6)
 	{
-		//avcodec_flush_buffers(fmt_ctx->streams[0]->codec);
-		//_d("[DEMUXER.ch%d] m_nFrameCount : %d, tm : %lld, fTime : %.3f\n", m_nChannel, m_nFrameCount, tm, fTime);
-		_d("[DEMUXER.ch%d] tm : %lld, fTime : %.3f\n", m_nChannel, tm, fTime);
-		if (m_nChannel < 4)
-		{
-			ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, AVSEEK_FLAG_FRAME);
-		}
-		else
-		{
-			ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, AVSEEK_FLAG_FRAME);
-		}
+		m_seek_pts = m_reverse_pts * AV_TIME_BASE / timeBase.den;
+		m_start_pts = high_resolution_clock::now();
+
+		ret = avformat_seek_file(fmt_ctx, 0, 0, m_reverse_pts, m_reverse_pts, AVSEEK_FLAG_FRAME);
 		if (ret < 0)
 		{
-			_d("[REVERSE.ch%d] ret : %d, not work(tm : %lld)\n", m_nChannel, ret, tm);
+			_d("[REVERSE.ch%d] ret : %d, not work(m_reverse_pts : %lld)\n", m_nChannel, ret, m_reverse_pts);
+			return false;
+		}
+		if (m_file_first_pts > m_reverse_pts)
+		{
+			_d("[REVERSE.ch%d] m_file_first_pts : %lld (m_reverse_pts : %lld)\n", m_nChannel, m_file_first_pts, m_reverse_pts);
 			return false;
 		}
 	}
-	//m_nFrameCount = m_nFrameCount - 2;
-#if 0
-	if (m_nFrameCount < 1)
-	{
-		return false;
-	}
 
-	if (m_start_pts < tm && m_start_pts != 0)
-	{
-		_d("[REVERSE.ch%d] start_pts : %lld, not work(tm : %lld)\n", m_nChannel, m_start_pts, tm);
-		return false;
-	}
-#endif
 	return true;
 }
 
