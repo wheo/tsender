@@ -38,12 +38,20 @@ bool CCommMgr::SetSocket()
 		cout << "[COMM] Failed to open rx socket" << endl;
 		return false;
 	}
+	else
+	{
+		cout << "[COMM] Success to open rx socket (" << m_sdRecv << ")" << endl;
+	}
 
 	m_sdSend = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
 	if (m_sdSend < 0)
 	{
 		cout << "[COMM] failed to open tx socket" << endl;
 		return false;
+	}
+	else
+	{
+		cout << "[COMM] Success to open rx socket (" << m_sdSend << ")" << endl;
 	}
 
 	memset(&sin, 0, sizeof(struct sockaddr_in));
@@ -274,23 +282,9 @@ bool CCommMgr::RX()
 				//멈춤
 				if (m_bIsRunning)
 				{
-					uint64_t max_pts = 0;
-					for (int i = 0; i < m_nChannel; i++)
-					{
-						cout << "[COMM] Channel : " << i << ", PTS : " << m_CDemuxer[i]->GetCurrentPTS() << endl;
-						if (max_pts < m_CDemuxer[i]->GetCurrentPTS())
-						{
-							max_pts = m_CDemuxer[i]->GetCurrentPTS();
-						}
-					}
-					cout << "[COMM] sync pts : " << max_pts << endl;
 					for (int i = 0; i < m_nChannel; i++)
 					{
 						m_CDemuxer[i]->SetPause();
-					}
-					for (int i = 0; i < 4; i++)
-					{
-						m_CDemuxer[i]->SetSyncPTS(max_pts);
 					}
 				}
 				else
@@ -340,7 +334,9 @@ bool CCommMgr::RX()
 					cout << "[COMM] Set Reverse" << m_nSpeed << endl;
 					int channel = root["info"]["channel"].asInt();
 					int sec = root["info"]["sec"].asInt();
+#if 0
 					ret_json = m_CDemuxer[channel]->GetThumbnail(sec);
+#endif
 				}
 				else
 				{

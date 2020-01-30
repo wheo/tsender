@@ -3,10 +3,9 @@
 
 #define MAX_AUDIO_STREAM 8
 
-#include "sender.h"
 #include "queue.h"
 #include "thumbnail.h"
-#include "switch.h"
+#include "sender.h"
 
 #define AUDIO_BUFF_SIZE 24
 
@@ -16,8 +15,8 @@ public:
 	CDemuxer(void);
 	~CDemuxer(void);
 
-	bool send_bitstream(uint8_t *stream, int size);
-	bool send_audiostream(char *buff, int size);
+	//bool send_bitstream(uint8_t *stream, int size);
+	//bool send_audiostream(char *buff, int size);
 
 	int ReadSocket(uint8_t *buffer, unsigned bufferSize);
 	bool Create(Json::Value info, Json::Value attr, int nChannel);
@@ -25,16 +24,20 @@ public:
 	void SetSpeed(int speed);
 	void SetPause();
 	void SetPause(bool state);
-	void SetSyncPTS(uint64_t pts);
+	//void SetSyncPTS(uint64_t pts);
 
 	//void SyncCheck();
 	bool SetReverse();
 	bool SetReverse(bool state);
 	int GetSpeed() { return m_nSpeed; }
-
 	bool SetMutex(pthread_mutex_t *mutex_sender);
+#if 0	
 	bool SetSocket();
-	pthread_mutex_t *GetMutex() { return m_mutex_demuxer; }
+#endif
+	pthread_mutex_t *GetMutex()
+	{
+		return m_mutex_demuxer;
+	}
 
 	bool Play();
 	void log(int type, int state);
@@ -48,14 +51,13 @@ public:
 	bool SetMoveSec(int nSec);
 	bool Reverse();
 	bool SeekFrame(int nFrame);
-	uint64_t GetCurrentPTS() { return m_current_pts; }
 	int FindFileIndexFromFrame(uint64_t nFrame);
 
 protected:
 	int m_nChannel;		// 현재 채널 넘버
 	Json::Value m_info; // 채널 정보 json
 	Json::Value m_attr; // 채널 공유 속성 attribute
-	CQueue *m_CQueue;
+	CQueue *m_queue;
 	CSender *m_CSender;
 
 	char m_strShmPrefix[32];
@@ -70,41 +72,37 @@ protected:
 private:
 	//mux_cfg_s m_mux_cfg;
 	CThumbnail *m_CThumbnail;
-	CSwitch *m_CSwitch;
 
 	int m_nRecSec; // 얼마나 녹화를 할 것인가
 	//uint64_t m_nFrameCount; // 프레임 수
 	uint64_t m_nAudioCount; // 오디오 수
 	int m_file_idx;			// 파일 인덱스 번호
 	int m_sock;				// 소켓 디스크립터
-	bool m_Wait;
 
-	bool m_IsForcePause;
+	bool m_IsPause;
 
 	bool m_IsMove;
+
+	bool m_IsAudioRead;
 
 	Json::Value m_files;
 
 	sockaddr_in m_mcast_group;
 	AVPacket m_pkt;
 	AVFormatContext *fmt_ctx;
-	int m_index = 0;
 	int m_nSeekFrame;
 	int m_nMoveIdx;
+	bool m_next_keyframe;
 	//double m_fMoveLeftSec;
 	double m_fDuration;
 	double m_fFPS;
-	uint64_t m_current_pts;
-	uint64_t m_sync_pts;
-	uint64_t m_compare_old_pts;
-	uint m_sync_cnt;
-	uint64_t m_seek_pts;
-	high_resolution_clock::time_point m_start_pts;
-	//uint m_wait_frame;
 
 	uint64_t m_file_first_pts;
 	uint m_reverse_count;
+	uint m_sync_cnt;
+	uint64_t m_seek_pts;
 	uint64_t m_reverse_pts;
+	high_resolution_clock::time_point m_start_pts;
 
 	uint64_t m_nTotalFrame;
 	int m_nTotalSec;

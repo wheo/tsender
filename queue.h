@@ -2,9 +2,11 @@
 #define _QUEUE_H_
 
 #define MAX_NUM_QUEUE 120
-#define MAX_NUM_AUDIO_QUEUE 512
+#define MAX_NUM_AUDIO_QUEUE 33
 #define QUE_INFINITE -1
 #define MIN_BUF_FRAME 9
+
+#define VIDEO_PACKET_BUFFER 30
 
 typedef struct tagELEM
 {
@@ -21,13 +23,13 @@ public:
 	void SetInfo(int nChannel, string type);
 	void Clear();
 
-	int Put(AVPacket *pkt);
-	int PutAudio(char *pData, int nSize);
+	int PutVideo(AVPacket *pkt, uint64_t start_pts);
+	int PutAudio(char *pData, int nSize, uint64_t start_pts);
 
-	int Get(AVPacket *pkt);
-	void *GetAudio();
+	int GetVideo(AVPacket *pkt, uint64_t *start_pts);
+	void *GetAudio(uint64_t *start_pts);
 
-	void Ret(AVPacket *pkt);
+	void RetVideo(AVPacket *pkt);
 	void RetAudio(void *p);
 
 	void Enable();
@@ -61,8 +63,10 @@ private:
 	int m_nReadAudioPos;
 	int m_nWriteAudioPos;
 
-	int m_nReadFramePos;
-	int m_nWriteFramePos;
+	//int m_nReadFramePos;
+	//int m_nWriteFramePos;
+
+	uint64_t m_start_pts;
 
 	int m_nChannel;
 	string m_type;
