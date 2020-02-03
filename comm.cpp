@@ -175,26 +175,6 @@ bool CCommMgr::RX()
 			}
 			else if (root["cmd"] == "play_reverse")
 			{
-#if 0
-                // 역재생 흑역사!!!! 이렇게 만들면 안된다!!!!
-                if (m_bIsRunning)
-                {
-                    for (int i = 0; i < m_nChannel; i++)
-                    {
-                        Delete();
-                    }
-                }
-                m_bIsRunning = true;
-                m_bIsRerverse = true;
-                m_nChannel = 0;
-                for (auto &value : m_attr["output_channels"])
-                {
-                    m_CDemuxer[m_nChannel] = new CDemuxer();
-                    m_CDemuxer[m_nChannel]->SetMutex(&m_mutex_comm);
-                    m_CDemuxer[m_nChannel]->Create(m_attr["output_channels"][m_nChannel], m_attr, m_nChannel);
-                    m_nChannel++;
-                }
-#endif
 				if (m_bIsRunning)
 				{
 					for (int i = 0; i < m_nChannel; i++)

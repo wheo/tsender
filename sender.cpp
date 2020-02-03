@@ -105,10 +105,10 @@ bool CSender::Create(Json::Value info, Json::Value attr, int nChannel)
 	m_file_idx = 0;
 	m_nSpeed = 1;
 	m_nSeekFrame = 0;
-	m_is_skip = false;
+	m_is_pframe_skip = false;
 	m_current_pts = 0;
-	m_sync_pts = 0;
-	m_sync_cnt = 0;
+	//m_sync_pts = 0;
+	//m_sync_cnt = 0;
 	m_IsPause = false;
 	m_bIsRerverse = false;
 	m_IsMove = false;
@@ -117,11 +117,12 @@ bool CSender::Create(Json::Value info, Json::Value attr, int nChannel)
 	m_file_cnt = 0;
 	m_files = NULL;
 	m_file_first_pts = 0;
-	m_reverse_count = 0;
 	m_out_pts = 0;
 	m_next_keyframe = false;
 	m_seek_pts = 0;
 	m_seek_old_pts = 0;
+	m_dur_pts = 0;
+	m_dur_cnt = 0;
 
 	//uint64_t num = m_info["num"].asUInt64();
 	//uint64_t den = m_info["den"].asUInt64();
@@ -134,7 +135,7 @@ bool CSender::Create(Json::Value info, Json::Value attr, int nChannel)
 	if (SetSocket())
 	{
 		cout << "[SENDER.ch" << m_nChannel << "] SetSocket config is completed" << endl;
-		usleep(10000);
+		usleep(1000);
 		Start();
 	}
 	return true;
@@ -164,8 +165,12 @@ void CSender::SetAVFormatContext(AVFormatContext **fmt_ctx)
 void CSender::Run()
 {
 	//Play();
+	int keyframe_speed = m_attr["keyframe_speed"].asInt();
 	m_now_pts = 0;
+	m_timer = 0;
 	m_seek_pts = 0;
+	m_add_pts = 0;
+
 	uint64_t old_now_pts = 0;
 	uint64_t now_diff = 0;
 	uint64_t num = m_info["num"].asUInt64();
@@ -177,33 +182,135 @@ void CSender::Run()
 	m_begin = high_resolution_clock::now();
 	AVStream *pStream = NULL;
 	AVRational timeBase;
-	timeBase.num = 0;
-	timeBase.den = 0;
+	timeBase.num = num;
+	timeBase.den = den;
 
 	int skip_cnt = 0;
 
+	int nSpeed = 1;
+	int nOldSpeed = 1;
+
+	m_bIsTimerReset = false;
+
+	bool reverseState = false;
+	bool isReverse = false;
+	bool isPause = false;
+	bool pauseOld = false;
+	uint64_t pause_time = 0;
+
+	uint64_t pause_cnt = 0;
+	uint64_t pause_diff = 0;
+
 	while (!m_bExit)
 	{
+		nSpeed = m_nSpeed;
 		AVPacket pkt;
 		av_init_packet(&pkt);
 		pkt.data = NULL;
 		pkt.size = 0;
 		pkt.pts = 0;
 
-		m_end = high_resolution_clock::now();
-		m_now_pts = duration_cast<microseconds>(m_end - m_begin).count();
-		if (m_seek_pts != m_seek_old_pts)
-		{
-			m_begin = high_resolution_clock::now();
-			skip_cnt = gop;
-		}
-		m_now_pts = m_seek_pts + m_now_pts;
-		m_seek_old_pts = m_seek_pts;
+		isReverse = m_bIsRerverse;
+		isPause = m_IsPause;
 		// seek_pts 현재 지점 m_start_pts는 now()
+
+		if (isReverse == false)
+		{
+			m_now_pts = m_add_pts + m_seek_pts + (m_dur_cnt * m_dur_pts);
+		}
+		else
+		{
+			m_now_pts = m_add_pts + m_seek_pts - (m_dur_cnt * m_dur_pts);
+		}
+
 		this_thread::sleep_for(microseconds(1));
 
-		//cout << "[SENDER.ch" << m_nChannel << "] seek_pts : " << m_seek_pts << ", now_pts : " << m_now_pts << ", out_pts : " << m_out_pts << endl;
-		if (m_out_pts <= m_now_pts)
+		if (m_seek_pts != m_seek_old_pts)
+		{
+			//구간점프 시간이 달라지면 타이머 리셋
+			m_begin = high_resolution_clock::now();
+			cout << "[SENDER.ch" << m_nChannel << "] seek diff timer reset" << endl;
+			m_add_pts = 0;
+			m_dur_pts = 0;
+			m_dur_cnt = 0;
+			skip_cnt = gop;
+		}
+
+		//방향이 바뀐것을 탐지했을 때
+		if (reverseState != isReverse)
+		{
+			//역방향 재생시
+			if (m_bIsRerverse == true)
+			{
+				//역방향 재생 때 seek_time이 발생했을 때
+				// out_pts를 가져오지 못함
+				m_out_pts = (((m_current_pts * timeBase.num) * AV_TIME_BASE) / timeBase.den);
+#if 0
+				if (m_seek_pts != m_seek_old_pts)
+				{
+					cout << "[SENDER.ch" << m_nChannel << "] 역방향시 구간이동 함" << endl;
+				}
+#endif
+				//현재 시간을 add_pts에 누적
+				m_add_pts = m_add_pts + m_timer;
+
+				cout << "[SENDER.ch" << m_nChannel << "] m_current_pts : " << m_current_pts << " ,m_add_pts : " << m_add_pts << ", m_out_pts : " << m_out_pts << ", timer : " << m_timer << endl;
+			}
+			else
+			{
+				// 정방향 재생시 add_pts에 output_pts를 넣음
+				m_add_pts = m_out_pts;
+				if (m_seek_pts > 0)
+				{
+					m_add_pts = m_add_pts - m_seek_pts;
+				}
+			}
+
+			//방향이 바뀌면 타이머는 리셋하고 큐를 비움
+			m_begin = high_resolution_clock::now();
+			cout << "[SENDER.ch" << m_nChannel << "] reverse diff timer reset" << endl;
+			m_queue->Clear();
+
+			m_dur_pts = 0;
+			m_dur_cnt = 0;
+		}
+
+		m_seek_old_pts = m_seek_pts;
+		reverseState = isReverse;
+
+		if (isReverse == false)
+		{
+			m_now_pts = m_now_pts + m_timer;
+			// out_pts <= now_pts;
+			if (m_out_pts <= m_now_pts)
+			{
+				m_bSend = true;
+			}
+			else
+			{
+				m_bSend = false;
+			}
+		}
+		else
+		{
+			m_now_pts = m_now_pts - m_timer;
+			// out_pts > now_pts;
+			if (m_out_pts > m_now_pts)
+			{
+				m_bSend = true;
+			}
+			else
+			{
+				m_bSend = false;
+			}
+		}
+
+		m_end = high_resolution_clock::now();
+		m_timer = duration_cast<microseconds>(m_end - m_begin).count();
+
+		//cout << "[SENDER.ch" << m_nChannel << "] timer : " << m_timer << ", now : " << m_now_pts << ", out : " << m_out_pts << ", reverse : " << isReverse << ", seek : " << m_seek_pts << ", 보정 : " << m_interpolation_pts << endl;
+		//cout << "[SENDER.ch" << m_nChannel << "] timer : " << m_timer << ", now : " << m_now_pts << ", out : " << m_out_pts << endl;
+		if (m_bSend == true)
 		{
 			if (m_info["type"].asString() == "video")
 			{
@@ -211,12 +318,6 @@ void CSender::Run()
 				{
 					if (m_queue->GetVideo(&pkt, &m_seek_pts) > 0)
 					{
-#if 0
-						if (m_fmt_ctx)
-						{
-							cout << "[SENDER.ch" << m_nChannel << "] filename : " << m_fmt_ctx->filename << endl;
-						}
-#endif
 						if (m_fmt_ctx)
 						{
 							if (pStream == NULL)
@@ -225,37 +326,89 @@ void CSender::Run()
 								timeBase = pStream->time_base;
 							}
 						}
+
+						if (isPause != pauseOld)
+						{
+							//상태 변화가 일어났다
+							if (isPause == true)
+							{
+								pause_time = m_timer;
+								cout << "[SENDER.ch" << m_nChannel << "] pause_time : " << pause_time << endl;
+							}
+							else
+							{
+								m_add_pts = m_add_pts - m_timer + pause_time;
+								m_now_pts = m_out_pts - ((timeBase.num * AV_TIME_BASE) / timeBase.den);
+								pause_time = 0;
+							}
+						}
+						pauseOld = isPause;
+
+						pts_diff = llabs(pkt.pts - old_pts);
+						now_diff = llabs(m_now_pts - old_now_pts);
+
+						m_out_pts = (((pkt.pts * timeBase.num) * AV_TIME_BASE) / timeBase.den);
+
+						if (nSpeed != nOldSpeed)
+						{
+							if (isReverse == false)
+							{
+								//빨리 감기를 한 시간을 누적함
+								m_add_pts = m_add_pts + (m_dur_pts * m_dur_cnt);
+							}
+							else if (isReverse == true)
+							{
+								//되감기를 한 시간을 누적함
+								//m_add_pts = m_add_pts - (m_dur_pts * m_dur_cnt);
+								//m_add_pts = 0;
+								cout << "speed diff & reverse true" << endl;
+							}
+							cout << "[SENDER.ch" << m_nChannel << "] m_add_pts : " << m_add_pts << ", m_dur_pts : " << m_dur_pts << ", m_dur_cnt : " << m_dur_cnt << endl;
+							m_dur_pts = 0;
+							m_dur_cnt = 0;
+						}
+						if (nSpeed > 1)
+						{
+							m_dur_pts = ((num * AV_TIME_BASE) / den);
+							m_dur_pts = m_dur_pts - (m_dur_pts / m_nSpeed);
+							m_dur_cnt++;
+						}
+						nOldSpeed = nSpeed;
+
 						if (skip_cnt > 0)
 						{
 							skip_cnt--;
 						}
 						else
 						{
-							if (!send_bitstream(pkt.data, pkt.size))
+							if (keyframe_speed > nSpeed)
 							{
-								cout << "[SENDER.ch" << m_nChannel << "] send_bitstream failed" << endl;
+								m_is_pframe_skip = false;
 							}
 							else
 							{
-								cout << "[SENDER.ch" << m_nChannel << "] send_bitstream (" << pkt.pts << ") sended" << endl;
+								m_is_pframe_skip = true;
+							}
+							if (m_is_pframe_skip == false || pkt.flags == AV_PKT_FLAG_KEY)
+							{
+								if (pkt.pts != old_pts)
+								{
+									if (send_bitstream(pkt.data, pkt.size))
+									{
+										//cout << "[SENDER.ch" << m_nChannel << "] send_bitstream (" << pkt.pts << ") sended" << endl;
+										cout << "[SENDER.ch" << m_nChannel << "] dur_cnt : " << m_dur_cnt << ", dur_pts : " << m_dur_pts << ", add_pts : " << m_add_pts << ", seek_pts : " << m_seek_pts << ", pkt.pts : " << pkt.pts << ", timer : " << m_timer << ", now_pts : " << m_now_pts << ", out_pts : " << m_out_pts << ", pts_diff : " << pts_diff << ", now_diff : " << now_diff << " (" << timeBase.num << "/" << timeBase.den << ") sended" << endl;
+										old_now_pts = m_now_pts;
+									}
+									else
+									{
+										cout << "[SENDER.ch" << m_nChannel << "] send_bitstream failed" << endl;
+									}
+								}
 							}
 						}
 
-						pts_diff = pkt.pts - old_pts;
-						now_diff = m_now_pts - old_now_pts;
-
-						if (pts_diff > 0)
-						{
-#if 0
-							m_out_pts = (((pkt.pts * num) * AV_TIME_BASE) / (pts_diff * den));
-#else
-							m_out_pts = ((pkt.pts * timeBase.num) * AV_TIME_BASE) / timeBase.den;
-#endif
-						}
-						cout << "[SENDER.ch" << m_nChannel << "] pkt.pts : " << pkt.pts << ", seek_pts : " << m_seek_pts << ", now_pts : " << m_now_pts << ", out_pts : " << m_out_pts << ", pts_diff : " << pts_diff << ", now_diff : " << now_diff << " (" << timeBase.num << "/" << timeBase.den << ")" << endl;
-
+						m_current_pts = pkt.pts;
 						old_pts = pkt.pts;
-						old_now_pts = m_now_pts;
 
 						if (m_queue)
 						{
@@ -273,16 +426,37 @@ void CSender::Run()
 					ELEM *pe = (ELEM *)m_queue->GetAudio(&m_seek_pts);
 					if (pe && pe->len > 0)
 					{
-						m_nAudioCount++;
-						if (!send_audiostream(pe->p, AUDIO_BUFF_SIZE))
+						if (nSpeed != nOldSpeed)
 						{
-							cout << "[SENDER.ch" << m_nChannel << "] send_audiotream failed" << endl;
+							cout << "[SENDER.ch" << m_nChannel << "] here" << endl;
+							m_add_pts = m_add_pts + (m_dur_pts * m_dur_cnt);
+							m_dur_pts = 0;
+							m_dur_cnt = 0;
 						}
-						else
+						if (nSpeed > 1)
 						{
+							m_dur_pts = ((num * AV_TIME_BASE) / den);
+							m_dur_pts = m_dur_pts - (m_dur_pts / m_nSpeed);
+							m_dur_cnt++;
+						}
+
+						nOldSpeed = nSpeed;
+
+						m_nAudioCount++;
+						m_current_pts = m_nAudioCount;
+						if (nSpeed == 1 && isReverse == false)
+						{
+							if (send_audiostream(pe->p, AUDIO_BUFF_SIZE))
+							{
 #if 1
-							cout << "[SENDER.ch" << m_nChannel << "] send_audiotream sended(" << AUDIO_BUFF_SIZE << "), AudioCount : " << m_nAudioCount << endl;
+								cout << "[SENDER.ch" << m_nChannel << "] send_audiotream sended(" << AUDIO_BUFF_SIZE << "), AudioCount : " << m_nAudioCount << endl;
+								cout << "[SENDER.ch" << m_nChannel << "] padding_cnt : " << m_dur_cnt << ", padding_pts : " << m_dur_pts << ", interpolation : " << m_add_pts << ", seek_pts : " << m_seek_pts << ", now_pts : " << m_now_pts << ", out_pts : " << m_out_pts << ", pts_diff : " << pts_diff << ", now_diff : " << now_diff << " sended" << endl;
 #endif
+							}
+							else
+							{
+								cout << "[SENDER.ch" << m_nChannel << "] send_audiotream failed" << endl;
+							}
 						}
 						if (m_queue)
 						{
@@ -1024,15 +1198,28 @@ bool CSender::send_bitstream(uint8_t *stream, int size)
 
 	int nSendto;
 
-	char video_type = 0;	   // 1(NTSC), 2(PAL), 3(PANORAMA), 4(FOCUS)
+	char video_type = 1;	   // 1(NTSC), 2(PAL), 3(PANORAMA), 4(FOCUS)
 	char video_codec_type = 0; // 1(HEVC), 2(H264)
 	char video_frame_type = 0; // 0(P frame), 1(I frame)
 	char reserve[5] = {
 		0,
 	};
 
+	reserve[0] = 1; // 0 : 노멀 1 : 확장
+
+	int header_size = 0;
+
+	if (reserve[0] == 0)
+	{
+		header_size = PACKET_HEADER_SIZE;
+	}
+	else if (reserve[0] == 1)
+	{
+		header_size = PACKET_HEADER_EXTEND_SIZE;
+	}
+
 	uint8_t *p = stream;
-	uint8_t buffer[PACKET_HEADER_SIZE + PACKET_SIZE];
+	uint8_t buffer[header_size + PACKET_SIZE];
 
 	tot_size = remain = size;
 
@@ -1063,9 +1250,17 @@ bool CSender::send_bitstream(uint8_t *stream, int size)
 		memcpy(&buffer[17], &video_codec_type, 1);
 		memcpy(&buffer[18], &video_frame_type, 1);
 		memcpy(&buffer[19], &reserve, sizeof(reserve));
-		memcpy(&buffer[24], p, cur_size);
 
-		nSendto = sendto(m_sock, buffer, PACKET_HEADER_SIZE + cur_size, 0, (struct sockaddr *)&m_mcast_group, sizeof(m_mcast_group));
+		if (reserve[0] == 1)
+		{
+			// ..... here
+			memcpy(&buffer[24 + 5], &m_current_pts, 8);
+			memcpy(&buffer[24 + 13], &m_now_pts, 8);
+		}
+
+		memcpy(&buffer[header_size], p, cur_size);
+
+		nSendto = sendto(m_sock, buffer, header_size + cur_size, 0, (struct sockaddr *)&m_mcast_group, sizeof(m_mcast_group));
 		if (nSendto < 0)
 		{
 			return false;
@@ -1081,6 +1276,7 @@ bool CSender::send_bitstream(uint8_t *stream, int size)
 		remain -= cur_size;
 		p += cur_size;
 		cur_packet++;
+		usleep(1);
 	}
 
 	return true;
@@ -1089,7 +1285,7 @@ bool CSender::send_bitstream(uint8_t *stream, int size)
 void CSender::SetSpeed(int speed)
 {
 	m_nSpeed = speed;
-	cout << "[DEMUXER.ch" << m_nChannel << "] Set speed : " << m_nSpeed << endl;
+	cout << "[SENDER.ch" << m_nChannel << "] Set speed : " << m_nSpeed << endl;
 }
 
 void CSender::SetPause()
@@ -1097,7 +1293,7 @@ void CSender::SetPause()
 	m_IsPause = !m_IsPause;
 	//m_IsPause = !m_IsPause;
 
-	cout << "[DEMUXER.ch" << m_nChannel << "] Set Pause : " << m_IsPause << endl;
+	cout << "[SENDER.ch" << m_nChannel << "] Set Pause : " << m_IsPause << endl;
 }
 
 void CSender::SetPause(bool state)
@@ -1105,13 +1301,15 @@ void CSender::SetPause(bool state)
 	m_IsPause = state;
 	//m_IsPause = !m_IsPause;
 
-	cout << "[DEMUXER.ch" << m_nChannel << "] Set Pause : " << m_IsPause << endl;
+	cout << "[SENDER.ch" << m_nChannel << "] Set Pause : " << m_IsPause << endl;
 }
 
+#if 0
 void CSender::SetSyncPTS(uint64_t pts)
 {
 	m_sync_pts = pts;
 }
+#endif
 
 #if 0
 void CDemuxer::SyncCheck()
@@ -1154,14 +1352,14 @@ void CDemuxer::SyncCheck()
 bool CSender::SetReverse()
 {
 	m_bIsRerverse = !m_bIsRerverse;
-	cout << "[DEMUXER.ch" << m_nChannel << "] Set Reverse : " << m_bIsRerverse << endl;
+	cout << "[SENDER.ch" << m_nChannel << "] Set Reverse : " << m_bIsRerverse << endl;
 	return m_bIsRerverse;
 }
 
 bool CSender::SetReverse(bool state)
 {
 	m_bIsRerverse = state;
-	cout << "[DEMUXER.ch" << m_nChannel << "] Set Reverse : " << m_bIsRerverse << endl;
+	cout << "[SENDER.ch" << m_nChannel << "] Set Reverse : " << m_bIsRerverse << endl;
 	return m_bIsRerverse;
 }
 

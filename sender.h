@@ -63,6 +63,8 @@ protected:
 	int m_nWrite;
 	//double m_fps;
 	bool m_bIsRerverse;
+	bool m_bSend;
+	bool m_bIsTimerReset;
 	int64_t m_currentDuration;
 	int64_t nFrame;
 	//int64_t m_start_pts;
@@ -84,7 +86,7 @@ private:
 	Json::Value m_files;
 
 	sockaddr_in m_mcast_group;
-	AVPacket m_pkt;
+	//AVPacket m_pkt;
 	AVFormatContext *m_fmt_ctx;
 	int m_nSeekFrame;
 	int m_nMoveIdx;
@@ -93,18 +95,25 @@ private:
 	double m_fDuration;
 	double m_fFPS;
 	uint64_t m_current_pts;
-	uint64_t m_sync_pts;
-	uint m_sync_cnt;
+
+	//uint64_t m_sync_pts;
+	//uint m_sync_cnt;
 	uint64_t m_seek_pts;
 	uint64_t m_seek_old_pts;
+
+	uint64_t m_dur_pts;
+	uint64_t m_dur_cnt;
+	int64_t m_add_pts;
+
 	uint64_t m_out_pts;
 	high_resolution_clock::time_point m_begin;
 	high_resolution_clock::time_point m_end;
+	high_resolution_clock::time_point m_reserve_clock;
 	uint64_t m_now_pts;
+	uint64_t m_timer;
 	//uint m_wait_frame;
 
 	uint64_t m_file_first_pts;
-	uint m_reverse_count;
 	uint64_t m_reverse_pts;
 
 	uint64_t m_nTotalFrame;
@@ -124,7 +133,7 @@ private:
 	AVStream *video_stream = NULL, *audio_stream = NULL;
 
 	int refcount;
-	bool m_is_skip;
+	bool m_is_pframe_skip;
 
 	Json::Value json;
 

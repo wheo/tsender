@@ -102,6 +102,10 @@ private:
 	uint m_sync_cnt;
 	uint64_t m_seek_pts;
 	uint64_t m_reverse_pts;
+	uint64_t m_first_reverse_pts;
+
+	AVStream *m_pStream;
+	AVRational m_timeBase;
 	high_resolution_clock::time_point m_start_pts;
 
 	uint64_t m_nTotalFrame;
