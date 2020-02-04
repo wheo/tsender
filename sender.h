@@ -27,8 +27,7 @@ public:
 	void SetSyncPTS(uint64_t pts);
 
 	//void SyncCheck();
-	bool SetReverse();
-	bool SetReverse(bool state);
+	void SetReverse(bool state);
 	int GetSpeed() { return m_nSpeed; }
 
 	//bool SetMutex(pthread_mutex_t *mutex_sender);
@@ -67,6 +66,8 @@ protected:
 	bool m_bIsTimerReset;
 	int64_t m_currentDuration;
 	int64_t nFrame;
+	AVStream *pStream;
+	AVRational m_timeBase;
 	//int64_t m_start_pts;
 
 private:
@@ -139,7 +140,6 @@ private:
 
 	pthread_mutex_t *m_mutex_demuxer;
 	int m_nSpeed;
-	int open_codec_context(int *stream_idx, AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type);
 
 protected:
 	void Run();

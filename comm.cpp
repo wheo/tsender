@@ -84,7 +84,8 @@ bool CCommMgr::Open(int nPort, Json::Value attr)
 	m_nChannel = 0;
 	m_nSpeed = 1;
 	m_bIsRunning = false;
-	m_bIsRerverse = false;
+	m_bIsReverse = false;
+	m_bIsReverseOld = false;
 	m_nPort = nPort;
 	m_attr = attr;
 
@@ -166,9 +167,8 @@ bool CCommMgr::RX()
 					{
 						if (m_CDemuxer[i])
 						{
+							//멈춤을 푼다
 							m_CDemuxer[i]->SetPause(false);
-							m_CDemuxer[i]->SetReverse(false);
-							m_CDemuxer[i]->SetSpeed(1);
 						}
 					}
 				}
@@ -177,30 +177,14 @@ bool CCommMgr::RX()
 			{
 				if (m_bIsRunning)
 				{
+					//m_bIsReverse = !m_bIsReverse;
+					m_nSpeed = root["info"]["speed"].asInt();
 					for (int i = 0; i < m_nChannel; i++)
 					{
-						m_bIsRerverse = m_CDemuxer[i]->SetReverse();
+						m_CDemuxer[i]->SetReverse(true);
+						m_CDemuxer[i]->SetPause(false);
+						m_CDemuxer[i]->SetSpeed(m_nSpeed);
 					}
-
-#if 1
-					if (m_bIsRerverse == false)
-					{
-						uint64_t max_pts = 0;
-						for (int i = 0; i < 4; i++)
-						{
-							cout << "[COMM] Channel : " << i << ", PTS : " << m_CDemuxer[i]->GetCurrentPTS() << endl;
-							if (max_pts < m_CDemuxer[i]->GetCurrentPTS())
-							{
-								max_pts = m_CDemuxer[i]->GetCurrentPTS();
-							}
-						}
-						cout << "[COMM] sync pts : " << max_pts << endl;
-						for (int i = 0; i < 4; i++)
-						{
-							m_CDemuxer[i]->SetSyncPTS(max_pts);
-						}
-					}
-#endif
 				}
 				else
 				{
@@ -230,26 +214,17 @@ bool CCommMgr::RX()
 					m_nSpeed = root["info"]["speed"].asInt();
 					for (int i = 0; i < m_nChannel; i++)
 					{
+						m_CDemuxer[i]->SetReverse(false);
 						m_CDemuxer[i]->SetSpeed(m_nSpeed);
 					}
-
-#if 0 
-
-					uint64_t max_pts = 0;
-					for (int i = 0; i < m_nChannel; i++)
+					if (m_nSpeed == 1)
 					{
-						cout << "[COMM] Channel : " << i << ", PTS : " << m_CDemuxer[i]->GetCurrentPTS() << endl;
-						if (max_pts < m_CDemuxer[i]->GetCurrentPTS())
+						for (int i = 0; i < m_nChannel; i++)
 						{
-							max_pts = m_CDemuxer[i]->GetCurrentPTS();
+							m_CDemuxer[i]->SetPause(true);
 						}
+						Sync();
 					}
-					cout << "[COMM] sync pts : " << max_pts << endl;
-					for (int i = 0; i < 4; i++)
-					{
-						m_CDemuxer[i]->SetSyncPTS(max_pts);
-					}
-#endif
 				}
 				else
 				{
@@ -263,8 +238,9 @@ bool CCommMgr::RX()
 				{
 					for (int i = 0; i < m_nChannel; i++)
 					{
-						m_CDemuxer[i]->SetPause();
+						m_CDemuxer[i]->SetPause(true);
 					}
+					Sync();
 				}
 				else
 				{
@@ -281,24 +257,7 @@ bool CCommMgr::RX()
 					{
 						m_CDemuxer[i]->SetMoveSec(m_nMoveSec);
 					}
-#if 0
-					usleep(100000);
-
-					uint64_t max_pts = 0;
-					for (int i = 0; i < 4; i++)
-					{
-						cout << "[COMM] Channel : " << i << ", PTS : " << m_CDemuxer[i]->GetCurrentPTS() << endl;
-						if (max_pts < m_CDemuxer[i]->GetCurrentPTS())
-						{
-							max_pts = m_CDemuxer[i]->GetCurrentPTS();
-						}
-					}
-					cout << "[COMM] sync pts : " << max_pts << endl;
-					for (int i = 0; i < 4; i++)
-					{
-						m_CDemuxer[i]->SetSyncPTS(max_pts);
-					}
-#endif
+					Sync();
 				}
 				else
 				{
@@ -400,6 +359,24 @@ bool CCommMgr::TX(char *buff, int size)
 
 	sendto(m_sdSend, buff, size, 0, (struct sockaddr *)&m_sin, sin_size);
 	cout << "[COMM] ip : " << inet_ntoa(m_sin.sin_addr) << " port : " << htons(m_sin.sin_port) << ", send message(" << size << ") : " << buff << endl;
+}
+
+void CCommMgr::Sync()
+{
+	uint64_t max_pts = 0;
+	for (int i = 0; i < 4; i++)
+	{
+		cout << "[COMM] Channel : " << i << ", PTS : " << m_CDemuxer[i]->GetCurrentPTS() << endl;
+		if (max_pts < m_CDemuxer[i]->GetCurrentPTS())
+		{
+			max_pts = m_CDemuxer[i]->GetCurrentPTS();
+		}
+	}
+	cout << "[COMM] sync pts : " << max_pts << endl;
+	for (int i = 0; i < 4; i++)
+	{
+		m_CDemuxer[i]->SetSyncPTS(max_pts);
+	}
 }
 
 void CCommMgr::Delete()

@@ -1,9 +1,9 @@
 #include "main.h"
 #include "queue.h"
 
-CQueue::CQueue()
+CQueue::CQueue(int nMaxSize)
 {
-	m_nMaxQueue = MAX_NUM_QUEUE;
+	m_nMaxQueue = nMaxSize;
 	m_nMaxAudioQueue = MAX_NUM_AUDIO_QUEUE;
 
 	m_nSizeQueue = 0;

@@ -10,6 +10,8 @@ extern char __BUILD_NUMBER;
 static uint64_t sync_pts = 0;
 static uint64_t pts_time = 0;
 
+static uint64_t max_pts = 0;
+
 CDemuxer::CDemuxer(void)
 {
 	m_bExit = false;
@@ -61,7 +63,9 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 	m_queue = NULL;
 
 	m_current_pts = -1;
+	m_bDisable = false;
 
+	m_n_gop = m_info["gop"].asInt();
 	uint64_t num = m_info["num"].asUInt64();
 	uint64_t den = m_info["den"].asUInt64();
 
@@ -83,8 +87,17 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 #if 0
 	m_CThumbnail = new CThumbnail();
 #endif
+	int nQueueSize = 0;
+	if (m_nChannel < 4)
+	{
+		nQueueSize = 10;
+	}
+	else if (m_nChannel >= 4)
+	{
+		nQueueSize = 2;
+	}
 
-	m_queue = new CQueue();
+	m_queue = new CQueue(nQueueSize);
 	m_queue->SetInfo(m_nChannel, m_info["type"].asString());
 
 	cout << "[DEMUXER.ch" << m_nChannel << "] type : " << m_info["type"].asString() << endl;
@@ -118,10 +131,17 @@ uint64_t CDemuxer::GetCurrentPTS()
 
 void CDemuxer::SetSyncPTS(uint64_t pts)
 {
+	m_sync_pts = pts;
 }
 
 void CDemuxer::Disable()
 {
+	m_bDisable = true;
+}
+
+void CDemuxer::Enable()
+{
+	m_bDisable = false;
 }
 
 void CDemuxer::Run()
@@ -218,11 +238,13 @@ int CDemuxer::Demux(Json::Value files)
 
 	for (int i = 0; i < files.size(); i++)
 	{
-		if (m_sync_pts > 0)
+#if 0
+		if (m_sync_cnt > 0 && m_sync_pts < m_current_pts)
 		{
 			usleep(10);
+			continue;
 		}
-
+#endif
 		value = files[i];
 
 		if (m_bExit == true)
@@ -396,8 +418,12 @@ int CDemuxer::Demux(Json::Value files)
 					m_reverse_count = 0;
 				}
 
-				if (isPause == false)
+				if (isPause == false || (m_sync_pts > 0 && m_sync_pts > m_current_pts))
 				{
+					if (m_sync_pts < m_current_pts)
+					{
+						m_sync_pts = 0;
+					}
 					av_packet_unref(&pkt);
 					av_init_packet(&pkt);
 
@@ -417,6 +443,12 @@ int CDemuxer::Demux(Json::Value files)
 						m_current_pts = pkt.pts;
 						m_pStream = fmt_ctx->streams[0];
 						m_timeBase = m_pStream->time_base;
+
+						if (isReverse == true)
+						{
+							//cout << "[DEMUXER.ch" << m_nChannel << "] reverse pts(" << m_reverse_count << ") : " << pkt.pts << endl;
+							m_reverse_pts = m_reverse_pts - ((m_timeBase.den / den) * num * m_n_gop);
+						}
 
 						if (m_file_first_pts == 0)
 						{
@@ -446,12 +478,21 @@ int CDemuxer::Demux(Json::Value files)
 					}
 					//cout << "[DEMUXER.ch" << m_nChannel << "] m_nSeekFrame : " << m_nSeekFrame << ", seek_pts : " << m_seek_pts << ", current pts : " << pkt.pts << ", size : " << pkt.size << endl;
 				}
+
 				if (isPause != pauseOld)
 				{
+					cout << "[DEMUXER.ch" << m_nChannel << "] pts : " << m_current_pts << endl;
+					cout << "[DEMUXER.ch" << m_nChannel << "] m_sync_pts : " << m_sync_pts << endl;
+#if 0
 					if (isPause == false)
 					{
 						m_queue->Clear();
 					}
+					else if (isPause == true)
+					{
+						m_queue->Clear();
+					}
+#endif
 				}
 				pauseOld = isPause;
 
@@ -481,16 +522,6 @@ int CDemuxer::Demux(Json::Value files)
 						}
 					}
 					old_pts = pkt.pts;
-#if 0
-					if (!send_bitstream(pkt.data, pkt.size))
-					{
-						cout << "[DEMUXER.ch" << m_nChannel << "] send_bitstream failed" << endl;
-					}
-					else
-					{
-						cout << "[DEMUXER.ch" << m_nChannel << "] send_bitstream (" << pkt.pts << ") sended" << endl;
-					}
-#endif
 				}
 			}
 			else if (type == "audio")
@@ -539,33 +570,13 @@ int CDemuxer::Demux(Json::Value files)
 						m_IsAudioRead = false;
 					}
 				}
-#if 0
-				if (m_bIsRerverse == false)
-				{
-					//out_base = (m_nAudioCount * AV_TIME_BASE) * num / den;
-					//pts_diff = out_base - out_old_pts;
-					//m_out_pts = m_out_pts + (pts_diff / m_nSpeed);
-				}
-#endif
+
 				if (ifs.eof())
 				{
 					ifs.close();
 					cout << "[DEMUXER.ch" << m_nChannel << "] audio meet eof" << endl;
 					break;
 				}
-#if 0
-				if (m_IsPause == false && m_bIsRerverse == false && m_nSpeed == 1)
-				{
-					//legacy code
-					if (m_IsAudioRead == true)
-					{
-						if (m_queue->PutAudio(audio_buf, AUDIO_BUFF_SIZE, m_seek_pts) > 0)
-						{
-							m_IsAudioRead = false;
-						}
-					}
-				}
-#endif
 				usleep(1000);
 			}
 		}
@@ -689,19 +700,6 @@ bool CDemuxer::Reverse()
 {
 	uint64_t num = m_info["num"].asUInt64();
 	uint64_t den = m_info["den"].asUInt64();
-#if 0
-	double fTime = 0;
-	AVStream *pStream = fmt_ctx->streams[0];
-	fTime = (((double)(nFrame)*pStream->avg_frame_rate.den) / pStream->avg_frame_rate.num) - 0.5;
-
-	fTime = max(fTime, 0.);
-
-	AVRational timeBaseQ;
-	AVRational timeBase = pStream->time_base;
-
-	timeBaseQ.num = 1;
-	timeBaseQ.den = AV_TIME_BASE;
-#endif
 	//avcodec_flush_buffers(fmt_ctx->streams[0]->codec);
 	uint64_t pts_diff = 0;
 	int ret = 0;
@@ -709,8 +707,6 @@ bool CDemuxer::Reverse()
 	AVRational timeBase = pStream->time_base;
 
 	pts_diff = (num * AV_TIME_BASE) / den;
-
-	//cout << "[" << m_nChannel << "] (" << timeBase.num << "/" << timeBase.den << ") first_pts : " << m_file_first_pts << ", reverse_pts(AV_TIME_BASE) : " << ((m_reverse_pts / timeBase.den) * AV_TIME_BASE) << ", reverse_count : " << m_reverse_count << ", pts_diff : " << pts_diff << endl;
 	if (m_nChannel < 6)
 	{
 		m_reverse_pts = m_reverse_pts - ((timeBase.den / den) * num);
@@ -718,12 +714,12 @@ bool CDemuxer::Reverse()
 		ret = avformat_seek_file(fmt_ctx, 0, 0, m_reverse_pts, m_reverse_pts, AVSEEK_FLAG_BACKWARD);
 		if (ret < 0)
 		{
-			_d("[DEMUXER:REVERSE.ch%d] ret : %d, not work(m_reverse_pts : %lld)\n", m_nChannel, ret, m_reverse_pts);
+			_d("[DEMUXER:REVERSE.ch%d] ret : %d, not work (m_reverse_pts : %lld)\n", m_nChannel, ret, m_reverse_pts);
 			return false;
 		}
 		else
 		{
-			//_d("[DEMUXER:REVERSE.ch%d] ret : %d , tm(%lld)seek completed\n", m_nChannel, ret, m_reverse_pts);
+			//_d("[DEMUXER:REVERSE.ch%d] ret : %d , tm(%lld) seek completed\n", m_nChannel, ret, m_reverse_pts);
 		}
 #if 1
 		if (m_file_first_pts > ((m_reverse_pts / timeBase.den) * AV_TIME_BASE))
@@ -764,7 +760,6 @@ Json::Value CDemuxer::GetThumbnail(int nSec)
 }
 #endif
 
-#if 0
 bool CDemuxer::GetOutputs(string basepath)
 {
 	string path;
@@ -804,95 +799,6 @@ bool CDemuxer::GetOutputs(string basepath)
 	closedir(dir);
 	return EXIT_SUCCESS;
 }
-#endif
-#if 0
-bool CDemuxer::send_audiostream(char *buff, int size)
-{
-	int nSendto = 0;
-	nSendto = sendto(m_sock, buff, size, 0, (struct sockaddr *)&m_mcast_group, sizeof(m_mcast_group));
-	if (nSendto > 0)
-	{
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-bool CDemuxer::send_bitstream(uint8_t *stream, int size)
-{
-	int tot_packet = 0;
-	int cur_packet = 1;
-
-	int tot_size;
-	int cur_size;
-
-	int remain;
-
-	int nSendto;
-
-	char video_type = 0;	   // 1(NTSC), 2(PAL), 3(PANORAMA), 4(FOCUS)
-	char video_codec_type = 0; // 1(HEVC), 2(H264)
-	char video_frame_type = 0; // 0(P frame), 1(I frame)
-	char reserve[5] = {
-		0,
-	};
-
-	uint8_t *p = stream;
-	uint8_t buffer[PACKET_HEADER_SIZE + PACKET_SIZE];
-
-	tot_size = remain = size;
-
-	if ((tot_size % PACKET_SIZE) == 0)
-	{
-		tot_packet = tot_size / PACKET_SIZE;
-	}
-	else
-	{
-		tot_packet = tot_size / PACKET_SIZE + 1;
-	}
-	while (remain > 0)
-	{
-		if (remain > PACKET_SIZE)
-		{
-			cur_size = PACKET_SIZE;
-		}
-		else
-		{
-			cur_size = remain;
-		}
-
-		memcpy(&buffer[0], &tot_size, 4);
-		memcpy(&buffer[4], &cur_size, 4);
-		memcpy(&buffer[8], &tot_packet, 4);
-		memcpy(&buffer[12], &cur_packet, 4);
-		memcpy(&buffer[16], &video_type, 1);
-		memcpy(&buffer[17], &video_codec_type, 1);
-		memcpy(&buffer[18], &video_frame_type, 1);
-		memcpy(&buffer[19], &reserve, sizeof(reserve));
-		memcpy(&buffer[24], p, cur_size);
-
-		nSendto = sendto(m_sock, buffer, PACKET_HEADER_SIZE + cur_size, 0, (struct sockaddr *)&m_mcast_group, sizeof(m_mcast_group));
-		if (nSendto < 0)
-		{
-			return false;
-		}
-		else
-		{
-#if 0
-			cout << "[DEMUXER.ch" << m_nChannel << "] "
-				 << "tot_size : " << tot_size << ", cur_size : " << cur_size << ", tot_packet : " << tot_packet << ", cur_packet : " << cur_packet << ", nSendto : " << nSendto << endl;
-#endif
-		}
-
-		remain -= cur_size;
-		p += cur_size;
-		cur_packet++;
-	}
-
-	return true;
-}
-#endif
 
 void CDemuxer::SetSpeed(int speed)
 {
@@ -904,43 +810,25 @@ void CDemuxer::SetSpeed(int speed)
 	}
 }
 
-void CDemuxer::SetPause()
-{
-	m_IsPause = !m_IsPause;
-	//m_IsPause = !m_IsPause;
-
-	if (m_CSender)
-	{
-		m_CSender->SetPause();
-	}
-
-	cout << "[DEMUXER.ch" << m_nChannel << "] Set Pause : " << m_IsPause << endl;
-}
-
 void CDemuxer::SetPause(bool state)
 {
 	m_IsPause = state;
-	//m_IsPause = !m_IsPause;
+	if (m_CSender)
+	{
+		m_CSender->SetPause(state);
+	}
 
 	cout << "[DEMUXER.ch" << m_nChannel << "] Set Pause : " << m_IsPause << endl;
 }
 
-bool CDemuxer::SetReverse()
-{
-	m_bIsRerverse = !m_bIsRerverse;
-	cout << "[DEMUXER.ch" << m_nChannel << "] Set Reverse : " << m_bIsRerverse << endl;
-	if (m_CSender)
-	{
-		m_CSender->SetReverse();
-	}
-	return m_bIsRerverse;
-}
-
-bool CDemuxer::SetReverse(bool state)
+void CDemuxer::SetReverse(bool state)
 {
 	m_bIsRerverse = state;
 	cout << "[DEMUXER.ch" << m_nChannel << "] Set Reverse : " << m_bIsRerverse << endl;
-	return m_bIsRerverse;
+	if (m_CSender)
+	{
+		m_CSender->SetReverse(m_bIsRerverse);
+	}
 }
 
 int CDemuxer::open_codec_context(int *stream_idx, AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type)
@@ -996,40 +884,6 @@ int CDemuxer::open_codec_context(int *stream_idx, AVCodecContext **dec_ctx, AVFo
 
 	return 0;
 }
-
-#if 0
-int CDemuxer::get_format_from_sample_fmt(const char **fmt, enum AVSampleFormat sample_fmt)
-{
-	int i;
-	struct sample_fmt_entry
-	{
-		enum AVSampleFormat sample_fmt;
-		const char *fmt_be, *fmt_le;
-	} sample_fmt_entries[] = {
-		{AV_SAMPLE_FMT_U8, "u8", "u8"},
-		{AV_SAMPLE_FMT_S16, "s16be", "s16le"},
-		{AV_SAMPLE_FMT_S32, "s32be", "s32le"},
-		{AV_SAMPLE_FMT_FLT, "f32be", "f32le"},
-		{AV_SAMPLE_FMT_DBL, "f64be", "f64le"},
-	};
-	*fmt = NULL;
-
-	for (i = 0; i < FF_ARRAY_ELEMS(sample_fmt_entries); i++)
-	{
-		struct sample_fmt_entry *entry = &sample_fmt_entries[i];
-		if (sample_fmt == entry->sample_fmt)
-		{
-			*fmt = AV_NE(entry->fmt_be, entry->fmt_le);
-			return 0;
-		}
-	}
-
-	fprintf(stderr,
-			"sample format %s is not supported as output format\n",
-			av_get_sample_fmt_name(sample_fmt));
-	return -1;
-}
-#endif
 
 void CDemuxer::Delete()
 {

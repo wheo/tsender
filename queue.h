@@ -1,8 +1,8 @@
 #ifndef _QUEUE_H_
 #define _QUEUE_H_
 
-#define MAX_NUM_QUEUE 15
-#define MAX_NUM_AUDIO_QUEUE 11
+#define MAX_NUM_QUEUE 10
+#define MAX_NUM_AUDIO_QUEUE 4
 #define QUE_INFINITE -1
 #define MIN_BUF_FRAME 9
 
@@ -17,7 +17,7 @@ typedef struct tagELEM
 class CQueue
 {
 public:
-	CQueue();
+	CQueue(int nMaxSize);
 	~CQueue();
 
 	void SetInfo(int nChannel, string type);

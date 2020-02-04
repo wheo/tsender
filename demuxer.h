@@ -22,13 +22,11 @@ public:
 	bool Create(Json::Value info, Json::Value attr, int nChannel);
 	void Delete();
 	void SetSpeed(int speed);
-	void SetPause();
 	void SetPause(bool state);
 	//void SetSyncPTS(uint64_t pts);
 
 	//void SyncCheck();
-	bool SetReverse();
-	bool SetReverse(bool state);
+	void SetReverse(bool state);
 	int GetSpeed() { return m_nSpeed; }
 	bool SetMutex(pthread_mutex_t *mutex_sender);
 #if 0	
@@ -59,6 +57,7 @@ public:
 	int AudioSeek(uint64_t audioCount);
 	bool SyncNReset();
 	void Disable();
+	void Enable();
 
 protected:
 	int m_nChannel;		// 현재 채널 넘버
@@ -74,6 +73,7 @@ protected:
 	bool m_bIsRerverse;
 	int64_t m_currentDuration;
 	int64_t nFrame;
+	int m_n_gop;
 	//int64_t m_start_pts;
 
 private:
@@ -107,6 +107,7 @@ private:
 	double m_fDuration;
 	double m_fFPS;
 	uint64_t m_current_pts;
+	bool m_bDisable;
 
 	uint64_t m_file_first_pts;
 	uint m_reverse_count;

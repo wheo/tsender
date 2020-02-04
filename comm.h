@@ -38,6 +38,7 @@ public:
     bool Open(int nPort, Json::Value attr);
     bool SyncNReset();
     bool Echo(char *buf);
+    void Sync();
 
 protected:
     void Run();
@@ -53,7 +54,8 @@ protected:
     int m_sdSend;
     int m_nChannel;
     bool m_bIsRunning;
-    bool m_bIsRerverse;
+    bool m_bIsReverse;
+    bool m_bIsReverseOld;
     struct sockaddr_in m_sin;
     Json::Value m_attr;
     CDemuxer *m_CDemuxer[MAX_NUM_CHANNEL];
