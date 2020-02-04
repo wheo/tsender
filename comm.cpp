@@ -182,12 +182,11 @@ bool CCommMgr::RX()
 						m_bIsRerverse = m_CDemuxer[i]->SetReverse();
 					}
 
-#if 0
+#if 1
 					if (m_bIsRerverse == false)
 					{
-						cout << "[COMM] Set Reverse : " << m_bIsRerverse << endl;
 						uint64_t max_pts = 0;
-						for (int i = 0; i < m_nChannel; i++)
+						for (int i = 0; i < 4; i++)
 						{
 							cout << "[COMM] Channel : " << i << ", PTS : " << m_CDemuxer[i]->GetCurrentPTS() << endl;
 							if (max_pts < m_CDemuxer[i]->GetCurrentPTS())
@@ -196,7 +195,7 @@ bool CCommMgr::RX()
 							}
 						}
 						cout << "[COMM] sync pts : " << max_pts << endl;
-						for (int i = 0; i < 3; i++)
+						for (int i = 0; i < 4; i++)
 						{
 							m_CDemuxer[i]->SetSyncPTS(max_pts);
 						}
@@ -410,6 +409,17 @@ void CCommMgr::Delete()
 	{
 		SAFE_DELETE(m_CDemuxer[i]);
 		cout << "[COMM] channel " << i << " has been deleted" << endl;
+	}
+}
+
+bool CCommMgr::SyncNReset()
+{
+	if (m_CDemuxer)
+	{
+		for (int i = 0; i < m_nChannel; i++)
+		{
+			m_CDemuxer[i]->SyncNReset();
+		}
 	}
 }
 

@@ -36,6 +36,7 @@ public:
     ~CCommMgr();
 
     bool Open(int nPort, Json::Value attr);
+    bool SyncNReset();
     bool Echo(char *buf);
 
 protected:

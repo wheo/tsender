@@ -12,6 +12,7 @@ CSender::CSender(void)
 	m_bExit = false;
 	m_sock = 0;
 	m_queue = NULL;
+	m_bIsRerverse = false;
 }
 
 CSender::~CSender(void)
@@ -102,33 +103,12 @@ bool CSender::Create(Json::Value info, Json::Value attr, int nChannel)
 	m_info = info;
 	m_nChannel = nChannel;
 	m_attr = attr;
-	m_file_idx = 0;
-	m_nSpeed = 1;
-	m_nSeekFrame = 0;
-	m_is_pframe_skip = false;
-	m_current_pts = 0;
-	//m_sync_pts = 0;
-	//m_sync_cnt = 0;
-	m_IsPause = false;
-	m_bIsRerverse = false;
-	m_IsMove = false;
-	m_nTotalFrame = 0;
-	m_nTotalSec = 0;
-	m_file_cnt = 0;
-	m_files = NULL;
-	m_file_first_pts = 0;
-	m_out_pts = 0;
-	m_next_keyframe = false;
-	m_seek_pts = 0;
-	m_seek_old_pts = 0;
-	m_dur_pts = 0;
-	m_dur_cnt = 0;
 
 	//uint64_t num = m_info["num"].asUInt64();
 	//uint64_t den = m_info["den"].asUInt64();
 
 	m_nAudioCount = 0;
-	refcount = 0; // 1과 0의 차이를 알아보자
+	m_nSpeed = 1;
 
 	cout << "[SENDER.ch" << m_nChannel << "] type : " << m_info["type"].asString() << endl;
 
@@ -166,282 +146,130 @@ void CSender::Run()
 {
 	//Play();
 	int keyframe_speed = m_attr["keyframe_speed"].asInt();
-	m_now_pts = 0;
-	m_timer = 0;
-	m_seek_pts = 0;
-	m_add_pts = 0;
-
-	uint64_t old_now_pts = 0;
-	uint64_t now_diff = 0;
 	uint64_t num = m_info["num"].asUInt64();
 	uint64_t den = m_info["den"].asUInt64();
 	uint gop = m_info["gop"].asUInt();
-	uint64_t old_pts = 0;
-	uint64_t pts_diff = 0;
-
-	m_begin = high_resolution_clock::now();
-	AVStream *pStream = NULL;
-	AVRational timeBase;
-	timeBase.num = num;
-	timeBase.den = den;
-
-	int skip_cnt = 0;
 
 	int nSpeed = 1;
 	int nOldSpeed = 1;
-
-	m_bIsTimerReset = false;
-
-	bool reverseState = false;
-	bool isReverse = false;
+	int tick_diff = 0;
+	uint64_t delay = num * AV_TIME_BASE / den;
+	uint64_t target_time = 0;
 	bool isPause = false;
 	bool pauseOld = false;
-	uint64_t pause_time = 0;
+	bool isReverse = false;
+	bool reverseOld = false;
+	uint64_t old_pts = 0;
+	int64_t pts_diff = 0;
 
-	uint64_t pause_cnt = 0;
-	uint64_t pause_diff = 0;
+	m_now = 0;
+
+	m_begin = high_resolution_clock::now();
+	string type = m_info["type"].asString();
 
 	while (!m_bExit)
 	{
-		nSpeed = m_nSpeed;
-		AVPacket pkt;
-		av_init_packet(&pkt);
-		pkt.data = NULL;
-		pkt.size = 0;
-		pkt.pts = 0;
-
-		isReverse = m_bIsRerverse;
 		isPause = m_IsPause;
-		// seek_pts 현재 지점 m_start_pts는 now()
+		nSpeed = m_nSpeed;
+		isReverse = m_bIsRerverse;
 
-		if (isReverse == false)
+		if (isPause != pauseOld)
 		{
-			m_now_pts = m_add_pts + m_seek_pts + (m_dur_cnt * m_dur_pts);
-		}
-		else
-		{
-			m_now_pts = m_add_pts + m_seek_pts - (m_dur_cnt * m_dur_pts);
-		}
-
-		this_thread::sleep_for(microseconds(1));
-
-		if (m_seek_pts != m_seek_old_pts)
-		{
-			//구간점프 시간이 달라지면 타이머 리셋
-			m_begin = high_resolution_clock::now();
-			cout << "[SENDER.ch" << m_nChannel << "] seek diff timer reset" << endl;
-			m_add_pts = 0;
-			m_dur_pts = 0;
-			m_dur_cnt = 0;
-			skip_cnt = gop;
-		}
-
-		//방향이 바뀐것을 탐지했을 때
-		if (reverseState != isReverse)
-		{
-			//역방향 재생시
-			if (m_bIsRerverse == true)
+			//상태 변화가 일어났다
+			if (isPause == true)
 			{
-				//역방향 재생 때 seek_time이 발생했을 때
-				// out_pts를 가져오지 못함
-				m_out_pts = (((m_current_pts * timeBase.num) * AV_TIME_BASE) / timeBase.den);
-#if 0
-				if (m_seek_pts != m_seek_old_pts)
-				{
-					cout << "[SENDER.ch" << m_nChannel << "] 역방향시 구간이동 함" << endl;
-				}
-#endif
-				//현재 시간을 add_pts에 누적
-				m_add_pts = m_add_pts + m_timer;
-
-				cout << "[SENDER.ch" << m_nChannel << "] m_current_pts : " << m_current_pts << " ,m_add_pts : " << m_add_pts << ", m_out_pts : " << m_out_pts << ", timer : " << m_timer << endl;
+				//
 			}
 			else
 			{
-				// 정방향 재생시 add_pts에 output_pts를 넣음
-				m_add_pts = m_out_pts;
-				if (m_seek_pts > 0)
-				{
-					m_add_pts = m_add_pts - m_seek_pts;
-				}
+				//
 			}
-
-			//방향이 바뀌면 타이머는 리셋하고 큐를 비움
-			m_begin = high_resolution_clock::now();
-			cout << "[SENDER.ch" << m_nChannel << "] reverse diff timer reset" << endl;
-			m_queue->Clear();
-
-			m_dur_pts = 0;
-			m_dur_cnt = 0;
 		}
+		pauseOld = isPause;
 
-		m_seek_old_pts = m_seek_pts;
-		reverseState = isReverse;
-
-		if (isReverse == false)
+		if (isReverse == true)
 		{
-			m_now_pts = m_now_pts + m_timer;
-			// out_pts <= now_pts;
-			if (m_out_pts <= m_now_pts)
+			if (m_nChannel < 4)
 			{
-				m_bSend = true;
-			}
-			else
-			{
-				m_bSend = false;
+				target_time = num * gop * AV_TIME_BASE / den / nSpeed;
 			}
 		}
 		else
 		{
-			m_now_pts = m_now_pts - m_timer;
-			// out_pts > now_pts;
-			if (m_out_pts > m_now_pts)
-			{
-				m_bSend = true;
-			}
-			else
-			{
-				m_bSend = false;
-			}
+			target_time = delay / nSpeed;
 		}
 
-		m_end = high_resolution_clock::now();
-		m_timer = duration_cast<microseconds>(m_end - m_begin).count();
+		reverseOld = isReverse;
 
-		//cout << "[SENDER.ch" << m_nChannel << "] timer : " << m_timer << ", now : " << m_now_pts << ", out : " << m_out_pts << ", reverse : " << isReverse << ", seek : " << m_seek_pts << ", 보정 : " << m_interpolation_pts << endl;
-		//cout << "[SENDER.ch" << m_nChannel << "] timer : " << m_timer << ", now : " << m_now_pts << ", out : " << m_out_pts << endl;
-		if (m_bSend == true)
+		if (type == "video")
 		{
-			if (m_info["type"].asString() == "video")
+			AVPacket pkt;
+			av_init_packet(&pkt);
+			pkt.data = NULL;
+			pkt.size = 0;
+			pkt.pts = 0;
+
+			if (m_queue)
 			{
-				if (m_queue && m_fmt_ctx)
+				if (m_queue->GetVideo(&pkt, &m_seek_pts) > 0)
 				{
-					if (m_queue->GetVideo(&pkt, &m_seek_pts) > 0)
+					if (keyframe_speed > nSpeed)
 					{
-						if (m_fmt_ctx)
+						m_is_pframe_skip = false;
+					}
+					else
+					{
+						m_is_pframe_skip = true;
+					}
+					if (m_is_pframe_skip == false || pkt.flags == AV_PKT_FLAG_KEY)
+					{
+						if (send_bitstream(pkt.data, pkt.size))
 						{
-							if (pStream == NULL)
-							{
-								pStream = m_fmt_ctx->streams[0];
-								timeBase = pStream->time_base;
-							}
-						}
-
-						if (isPause != pauseOld)
-						{
-							//상태 변화가 일어났다
-							if (isPause == true)
-							{
-								pause_time = m_timer;
-								cout << "[SENDER.ch" << m_nChannel << "] pause_time : " << pause_time << endl;
-							}
-							else
-							{
-								m_add_pts = m_add_pts - m_timer + pause_time;
-								m_now_pts = m_out_pts - ((timeBase.num * AV_TIME_BASE) / timeBase.den);
-								pause_time = 0;
-							}
-						}
-						pauseOld = isPause;
-
-						pts_diff = llabs(pkt.pts - old_pts);
-						now_diff = llabs(m_now_pts - old_now_pts);
-
-						m_out_pts = (((pkt.pts * timeBase.num) * AV_TIME_BASE) / timeBase.den);
-
-						if (nSpeed != nOldSpeed)
-						{
-							if (isReverse == false)
-							{
-								//빨리 감기를 한 시간을 누적함
-								m_add_pts = m_add_pts + (m_dur_pts * m_dur_cnt);
-							}
-							else if (isReverse == true)
-							{
-								//되감기를 한 시간을 누적함
-								//m_add_pts = m_add_pts - (m_dur_pts * m_dur_cnt);
-								//m_add_pts = 0;
-								cout << "speed diff & reverse true" << endl;
-							}
-							cout << "[SENDER.ch" << m_nChannel << "] m_add_pts : " << m_add_pts << ", m_dur_pts : " << m_dur_pts << ", m_dur_cnt : " << m_dur_cnt << endl;
-							m_dur_pts = 0;
-							m_dur_cnt = 0;
-						}
-						if (nSpeed > 1)
-						{
-							m_dur_pts = ((num * AV_TIME_BASE) / den);
-							m_dur_pts = m_dur_pts - (m_dur_pts / m_nSpeed);
-							m_dur_cnt++;
-						}
-						nOldSpeed = nSpeed;
-
-						if (skip_cnt > 0)
-						{
-							skip_cnt--;
+							cout << "[SENDER.ch" << m_nChannel << "] send_bitstream (" << pkt.pts << ") sended (" << target_time << endl;
 						}
 						else
 						{
-							if (keyframe_speed > nSpeed)
-							{
-								m_is_pframe_skip = false;
-							}
-							else
-							{
-								m_is_pframe_skip = true;
-							}
-							if (m_is_pframe_skip == false || pkt.flags == AV_PKT_FLAG_KEY)
-							{
-								if (pkt.pts != old_pts)
-								{
-									if (send_bitstream(pkt.data, pkt.size))
-									{
-										//cout << "[SENDER.ch" << m_nChannel << "] send_bitstream (" << pkt.pts << ") sended" << endl;
-										cout << "[SENDER.ch" << m_nChannel << "] dur_cnt : " << m_dur_cnt << ", dur_pts : " << m_dur_pts << ", add_pts : " << m_add_pts << ", seek_pts : " << m_seek_pts << ", pkt.pts : " << pkt.pts << ", timer : " << m_timer << ", now_pts : " << m_now_pts << ", out_pts : " << m_out_pts << ", pts_diff : " << pts_diff << ", now_diff : " << now_diff << " (" << timeBase.num << "/" << timeBase.den << ") sended" << endl;
-										old_now_pts = m_now_pts;
-									}
-									else
-									{
-										cout << "[SENDER.ch" << m_nChannel << "] send_bitstream failed" << endl;
-									}
-								}
-							}
+							cout << "[SENDER.ch" << m_nChannel << "] send_bitstream failed" << endl;
 						}
+					}
+					m_current_pts = pkt.pts;
 
-						m_current_pts = pkt.pts;
-						old_pts = pkt.pts;
-
-						if (m_queue)
-						{
-							m_queue->RetVideo(&pkt);
-						}
+					m_now = pkt.pts * AV_TIME_BASE / den;
+					if (m_queue)
+					{
+						m_queue->RetVideo(&pkt);
 					}
 				}
 			}
+		}
 
-			else if (m_info["type"].asString() == "audio")
+		else if (type == "audio")
+		{
+			//m_out_pts = ((m_nAudioCount * AV_TIME_BASE) * num / den);
+			if (m_queue)
 			{
-				m_out_pts = ((m_nAudioCount * AV_TIME_BASE) * num / den);
-				if (m_queue)
+				isReverse = m_bIsRerverse;
+				if (isReverse != reverseOld)
+				{
+					if (isReverse == true)
+					{
+						m_nAudioCount--;
+					}
+					else if (isReverse == false)
+					{
+						//move audio count
+					}
+				}
+				reverseOld = isReverse;
+				if (isReverse == true)
+				{
+					m_nAudioCount--;
+				}
+				else
 				{
 					ELEM *pe = (ELEM *)m_queue->GetAudio(&m_seek_pts);
 					if (pe && pe->len > 0)
 					{
-						if (nSpeed != nOldSpeed)
-						{
-							cout << "[SENDER.ch" << m_nChannel << "] here" << endl;
-							m_add_pts = m_add_pts + (m_dur_pts * m_dur_cnt);
-							m_dur_pts = 0;
-							m_dur_cnt = 0;
-						}
-						if (nSpeed > 1)
-						{
-							m_dur_pts = ((num * AV_TIME_BASE) / den);
-							m_dur_pts = m_dur_pts - (m_dur_pts / m_nSpeed);
-							m_dur_cnt++;
-						}
-
-						nOldSpeed = nSpeed;
-
 						m_nAudioCount++;
 						m_current_pts = m_nAudioCount;
 						if (nSpeed == 1 && isReverse == false)
@@ -450,7 +278,6 @@ void CSender::Run()
 							{
 #if 1
 								cout << "[SENDER.ch" << m_nChannel << "] send_audiotream sended(" << AUDIO_BUFF_SIZE << "), AudioCount : " << m_nAudioCount << endl;
-								cout << "[SENDER.ch" << m_nChannel << "] padding_cnt : " << m_dur_cnt << ", padding_pts : " << m_dur_pts << ", interpolation : " << m_add_pts << ", seek_pts : " << m_seek_pts << ", now_pts : " << m_now_pts << ", out_pts : " << m_out_pts << ", pts_diff : " << pts_diff << ", now_diff : " << now_diff << " sended" << endl;
 #endif
 							}
 							else
@@ -466,6 +293,27 @@ void CSender::Run()
 				}
 			}
 		}
+
+		pts_diff = llabs(m_current_pts - old_pts);
+
+#if 0
+		uint64_t reverse_delay = 0;
+		if (old_pts - m_current_pts >= 30030)
+		{
+			reverse_delay = pts_diff * AV_TIME_BASE / den / nSpeed;
+		}
+#endif
+		while (tick_diff < target_time - 10)
+		{
+			m_end = high_resolution_clock::now();
+			tick_diff = duration_cast<microseconds>(m_end - m_begin).count();
+			this_thread::sleep_for(microseconds(1));
+		}
+		old_pts = m_current_pts;
+
+		//cout << "[SENDER.ch" << m_nChannel << "] pts : " << m_current_pts << ", old_pts : " << old_pts << ", pts_diff : " << pts_diff << " , delay : " << delay << ", tick_diff : " << tick_diff << ", speed : " << nSpeed << endl;
+		m_begin = m_end;
+		tick_diff = 0;
 	}
 }
 
@@ -1255,7 +1103,7 @@ bool CSender::send_bitstream(uint8_t *stream, int size)
 		{
 			// ..... here
 			memcpy(&buffer[24 + 5], &m_current_pts, 8);
-			memcpy(&buffer[24 + 13], &m_now_pts, 8);
+			memcpy(&buffer[24 + 13], &m_now, 8);
 		}
 
 		memcpy(&buffer[header_size], p, cur_size);
@@ -1303,13 +1151,6 @@ void CSender::SetPause(bool state)
 
 	cout << "[SENDER.ch" << m_nChannel << "] Set Pause : " << m_IsPause << endl;
 }
-
-#if 0
-void CSender::SetSyncPTS(uint64_t pts)
-{
-	m_sync_pts = pts;
-}
-#endif
 
 #if 0
 void CDemuxer::SyncCheck()

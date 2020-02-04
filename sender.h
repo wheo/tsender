@@ -109,7 +109,7 @@ private:
 	high_resolution_clock::time_point m_begin;
 	high_resolution_clock::time_point m_end;
 	high_resolution_clock::time_point m_reserve_clock;
-	uint64_t m_now_pts;
+	uint64_t m_now;
 	uint64_t m_timer;
 	//uint m_wait_frame;
 

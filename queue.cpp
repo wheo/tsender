@@ -182,7 +182,9 @@ int CQueue::PutAudio(char *pData, int nSize, uint64_t start_pts)
 		{
 			m_bEnable = true;
 		}
-		//cout << "[QUEUE.ch" << m_nChannel << "] m_nWriteAudioPos : " << m_nWriteAudioPos << ", size : " << pe->len << ", nAudio : " << m_nAudio << endl;
+#if 0
+		cout << "[QUEUE.ch" << m_nChannel << "] m_nWriteAudioPos : " << m_nWriteAudioPos << ", size : " << pe->len << ", nAudio : " << m_nAudio << endl;
+#endif
 		pthread_mutex_unlock(&m_mutex);
 		return pe->len;
 	}

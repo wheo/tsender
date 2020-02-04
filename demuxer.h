@@ -39,6 +39,9 @@ public:
 		return m_mutex_demuxer;
 	}
 
+	uint64_t GetCurrentPTS();
+	void SetSyncPTS(uint64_t max_pts);
+
 	bool Play();
 	void log(int type, int state);
 	bool GetOutputs(string basepath);
@@ -49,9 +52,13 @@ public:
 	int Demux(Json::Value files);
 	//int DemuxRerverse(string src_filename);
 	bool SetMoveSec(int nSec);
+	bool SetMoveAudioCount(uint64_t audioCount);
 	bool Reverse();
 	bool SeekFrame(int nFrame);
 	int FindFileIndexFromFrame(uint64_t nFrame);
+	int AudioSeek(uint64_t audioCount);
+	bool SyncNReset();
+	void Disable();
 
 protected:
 	int m_nChannel;		// 현재 채널 넘버
@@ -92,10 +99,14 @@ private:
 	AVFormatContext *fmt_ctx;
 	int m_nSeekFrame;
 	int m_nMoveIdx;
+	bool m_bIsSync;
 	bool m_next_keyframe;
+	uint64_t m_sync_pts;
+	bool m_b_sync_check;
 	//double m_fMoveLeftSec;
 	double m_fDuration;
 	double m_fFPS;
+	uint64_t m_current_pts;
 
 	uint64_t m_file_first_pts;
 	uint m_reverse_count;
