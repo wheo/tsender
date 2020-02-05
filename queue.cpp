@@ -19,7 +19,8 @@ CQueue::CQueue(int nMaxSize)
 	m_nReadAudioPos = 0;
 	m_nWriteAudioPos = 0;
 
-	m_start_pts = 0;
+	m_seek_pts = 0;
+	m_current_video_pts = 0;
 
 	pthread_mutex_init(&m_mutex, NULL);
 
@@ -99,15 +100,15 @@ void CQueue::Disable()
 	cout << "[QUEUE.ch" << m_nChannel << "] diabled now... " << m_nPacket << endl;
 }
 
-int CQueue::PutVideo(AVPacket *pkt, uint64_t start_pts)
+int CQueue::PutVideo(AVPacket *pkt, uint64_t seek_pts)
 {
 #if 1
-	if (m_start_pts != start_pts)
+	if (m_seek_pts != seek_pts)
 	{
 		Clear();
 	}
 #endif
-	m_start_pts = start_pts;
+	m_seek_pts = seek_pts;
 	//int nCount = 0; // timeout 위한 용도
 	int ret_size = 0;
 
@@ -147,16 +148,16 @@ int CQueue::PutVideo(AVPacket *pkt, uint64_t start_pts)
 	return 0;
 }
 
-int CQueue::PutAudio(char *pData, int nSize, uint64_t start_pts)
+int CQueue::PutAudio(char *pData, int nSize, uint64_t seek_pts)
 {
 	int nCount = 0;
 #if 1
-	if (m_start_pts != start_pts)
+	if (m_seek_pts != seek_pts)
 	{
 		Clear();
 	}
 #endif
-	m_start_pts = start_pts;
+	m_seek_pts = seek_pts;
 
 	if (m_nMaxAudioQueue <= m_nAudio)
 	{
@@ -195,7 +196,7 @@ int CQueue::PutAudio(char *pData, int nSize, uint64_t start_pts)
 
 int CQueue::GetVideo(AVPacket *pkt, uint64_t *start_pts)
 {
-	*start_pts = m_start_pts;
+	*start_pts = m_seek_pts;
 #if 1
 	if (m_bEnable == false)
 	{
@@ -208,15 +209,12 @@ int CQueue::GetVideo(AVPacket *pkt, uint64_t *start_pts)
 
 	if (m_pkt[m_nReadPos].size > 0)
 	{
-#if 0
-		cout << "[QUEUE.ch" << m_nChannel << "] m_nReadPos : " << m_nReadPos << ", size : " << m_pkt[m_nReadPos].size << endl;
-#endif
 		av_init_packet(pkt);
 		av_packet_ref(pkt, &m_pkt[m_nReadPos]);
 		av_packet_unref(&m_pkt[m_nReadPos]);
-
+		m_current_video_pts = pkt->pts;
 #if 0
-		cout << "[QUEUE.ch" << m_nChannel << "] get pos (" << m_nReadPos << "), size (" << pkt->size << "), m_nPacket : " << m_nPacket << ", start_pts : " << *start_pts << endl;
+		cout << "[QUEUE.ch" << m_nChannel << "] get pos (" << m_nReadPos << "), size (" << pkt->size << "), pts (" << pkt->pts << ") m_nPacket : " << m_nPacket << endl;
 #endif
 		pthread_mutex_unlock(&m_mutex);
 		return pkt->size;
@@ -232,7 +230,7 @@ int CQueue::GetVideo(AVPacket *pkt, uint64_t *start_pts)
 
 void *CQueue::GetAudio(uint64_t *start_pts)
 {
-	start_pts = &m_start_pts;
+	start_pts = &m_seek_pts;
 #if 1
 	if (m_bEnable == false)
 	{
@@ -253,6 +251,12 @@ void *CQueue::GetAudio(uint64_t *start_pts)
 		usleep(10);
 	}
 	return 0;
+}
+
+uint64_t CQueue::GetCurrentVideoPTS()
+{
+	//cout << "[QUEUE.ch" << m_nChannel << "] current pts : " << m_current_video_pts << endl;
+	return m_current_video_pts;
 }
 
 void CQueue::RetAudio(void *p)

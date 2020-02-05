@@ -50,9 +50,11 @@ public:
 	int Demux(Json::Value files);
 	//int DemuxRerverse(string src_filename);
 	bool SetMoveSec(int nSec);
+	bool SetMoveFrame(uint64_t nFrame);
 	bool SetMoveAudioCount(uint64_t audioCount);
 	bool Reverse();
 	bool SeekFrame(int nFrame);
+	bool SeekPTS(uint64_t pts);
 	int FindFileIndexFromFrame(uint64_t nFrame);
 	int AudioSeek(uint64_t audioCount);
 	bool SyncNReset();

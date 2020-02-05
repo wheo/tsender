@@ -41,6 +41,7 @@ public:
 
 	int GetVideoPacketSize() { return m_nPacket; }
 	int GetAudioPacketSize() { return m_nAudio; }
+	uint64_t GetCurrentVideoPTS();
 	bool Exit();
 
 private:
@@ -66,7 +67,9 @@ private:
 	//int m_nReadFramePos;
 	//int m_nWriteFramePos;
 
-	uint64_t m_start_pts;
+	uint64_t m_seek_pts;
+
+	uint64_t m_current_video_pts;
 
 	int m_nChannel;
 	string m_type;

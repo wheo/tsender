@@ -7,11 +7,6 @@ extern char __BUILD_NUMBER;
 #define MAX_NUM_bitstream 4
 #define MAX_frame_size 1024 * 1024 // 1MB
 
-static uint64_t sync_pts = 0;
-static uint64_t pts_time = 0;
-
-static uint64_t max_pts = 0;
-
 CDemuxer::CDemuxer(void)
 {
 	m_bExit = false;
@@ -62,7 +57,7 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 	m_CSender = NULL;
 	m_queue = NULL;
 
-	m_current_pts = -1;
+	m_current_pts = 0;
 	m_bDisable = false;
 
 	m_n_gop = m_info["gop"].asInt();
@@ -126,7 +121,19 @@ bool CDemuxer::SetMutex(pthread_mutex_t *mutex)
 
 uint64_t CDemuxer::GetCurrentPTS()
 {
-	return m_current_pts;
+	uint64_t pts = 0;
+	if (m_bIsRerverse == true)
+	{
+		if (m_queue)
+		{
+			pts = m_queue->GetCurrentVideoPTS();
+		}
+		return pts;
+	}
+	else
+	{
+		return m_current_pts;
+	}
 }
 
 void CDemuxer::SetSyncPTS(uint64_t pts)
@@ -236,15 +243,13 @@ int CDemuxer::Demux(Json::Value files)
 	//m_start_pts = high_resolution_clock::now();
 	//high_resolution_clock::time_point current_pts;
 
+	bool isPause = false;
+	bool pauseOld = false;
+	bool isReverse = false;
+	bool reverseOld = false;
+
 	for (int i = 0; i < files.size(); i++)
 	{
-#if 0
-		if (m_sync_cnt > 0 && m_sync_pts < m_current_pts)
-		{
-			usleep(10);
-			continue;
-		}
-#endif
 		value = files[i];
 
 		if (m_bExit == true)
@@ -363,11 +368,6 @@ int CDemuxer::Demux(Json::Value files)
 
 		uint64_t old_pts = -1;
 
-		bool isPause = false;
-		bool pauseOld = false;
-		bool isReverse = false;
-		bool reverseOld = false;
-
 		while (!m_bExit)
 		{
 			isPause = m_IsPause;
@@ -390,33 +390,78 @@ int CDemuxer::Demux(Json::Value files)
 					SeekFrame(m_nSeekFrame);
 					m_nSeekFrame = 0;
 				}
-
-				if (isReverse == true)
+				if (isPause == false)
 				{
-					m_reverse_count++;
-					if (m_reverse_count == 1)
+					if (isReverse == true)
 					{
-						//reverse가 시작하면 현재 pts를 기준으로 역탐색을 시작함
-						m_reverse_pts = pkt.pts;
-						m_queue->Clear();
-					}
+						m_reverse_count++;
+						if (m_reverse_count == 1)
+						{
+							//reverse가 시작하면 현재 pts를 기준으로 역탐색을 시작함
+							m_reverse_pts = pkt.pts;
+						}
 
-					if (Reverse())
-					{
-						//Reverse continue
-					}
-					else
-					{
-						i = i - 2; // 직전 인덱스로 이동
-						//m_nFrameCount = last_frame;
-						cout << "[DEMUXER.ch" << m_nChannel << "] set index : " << i << endl;
-						break;
+						if (Reverse())
+						{
+							//Reverse continue
+						}
+						else
+						{
+							i = i - 2; // 직전 인덱스로 이동
+							//m_nFrameCount = last_frame;
+							cout << "[DEMUXER.ch" << m_nChannel << "] set index : " << i << endl;
+							break;
+						}
 					}
 				}
-				else
+				if (isReverse != reverseOld)
 				{
-					m_reverse_count = 0;
+					//Reverse 상태 (역배 -> 정배)
+					if (isReverse == false)
+					{
+						m_reverse_count = 0;
+						if (isPause == false)
+						{
+							//역배 -> 정배 & 멈춤 상태가 아닌경우
+							if (m_queue)
+							{
+								m_queue->Clear();
+								uint64_t nFrame = m_queue->GetCurrentVideoPTS() / (m_timeBase.den * num / den);
+								cout << "[DEMUXER.ch" << m_nChannel << "] moveFrame " << nFrame << endl;
+								SetMoveFrame(nFrame);
+							}
+						}
+						else if (isPause == true)
+						{
+							//정배로 돌아올 땐 sync_pts로 seek를 함
+							cout << "[DEMUXER.ch" << m_nChannel << "] !!!!!!!!!!!!!!!!!!!!!!!!!!! " << m_sync_pts << endl;
+							//SeekPTS(m_queue->GetCurrentVideoPTS());
+							//SeekPTS(m_sync_pts);
+							uint64_t nFrame = m_sync_pts / (m_timeBase.den * num / den);
+							cout << "[DEMUXER.ch" << m_nChannel << "] moveFrame " << nFrame << endl;
+							SetMoveFrame(nFrame);
+
+							m_queue->Enable();
+						}
+					}
+					else if (isReverse == true)
+					{
+						//Reverse 상태 (정배 -> 역배)
+						if (isPause == false)
+						{
+							//정배 -> 역배 & 멈춤 상태가 아닌경우
+							m_queue->Clear();
+							SeekPTS(m_current_pts);
+						}
+						else if (isPause == true)
+						{
+							//
+						}
+					}
+					cout << "[DEMUXER.ch" << m_nChannel << "] reverse status change : " << isReverse << endl;
 				}
+
+				reverseOld = isReverse;
 
 				if (isPause == false || (m_sync_pts > 0 && m_sync_pts > m_current_pts))
 				{
@@ -443,6 +488,8 @@ int CDemuxer::Demux(Json::Value files)
 						m_current_pts = pkt.pts;
 						m_pStream = fmt_ctx->streams[0];
 						m_timeBase = m_pStream->time_base;
+
+						//cout << "[DEMUXER.ch" << m_nChannel << "] av_read_frame : " << pkt.pts << endl;
 
 						if (isReverse == true)
 						{
@@ -481,8 +528,23 @@ int CDemuxer::Demux(Json::Value files)
 
 				if (isPause != pauseOld)
 				{
-					cout << "[DEMUXER.ch" << m_nChannel << "] pts : " << m_current_pts << endl;
+					cout << "[DEMUXER.ch" << m_nChannel << "] current_pts : " << m_current_pts << endl;
 					cout << "[DEMUXER.ch" << m_nChannel << "] m_sync_pts : " << m_sync_pts << endl;
+
+					if (isPause == true)
+					{
+						if (isReverse == true)
+						{
+							m_queue->Disable();
+							m_queue->Clear();
+							m_bIsRerverse = false;
+							if (m_CSender)
+							{
+								m_CSender->SetReverse(false);
+							}
+							cout << "[DEMUXER.ch" << m_nChannel << "] reverse & pause , reverse_pts : " << m_reverse_pts << ", current_pts " << m_current_pts << endl;
+						}
+					}
 #if 0
 					if (isPause == false)
 					{
@@ -611,6 +673,19 @@ bool CDemuxer::SetMoveSec(int nSec)
 	m_IsMove = true;
 }
 
+bool CDemuxer::SetMoveFrame(uint64_t nFrame)
+{
+	double ret;
+	uint64_t num = m_info["num"].asUInt64();
+	uint64_t den = m_info["den"].asUInt64();
+	//uint64_t nFrame = (nSec * den) / num;
+	m_nMoveIdx = FindFileIndexFromFrame(nFrame);
+	cout << "[DEMUXER.ch" << m_nChannel << "] input frame : " << nFrame << ", move index : " << m_nMoveIdx << endl;
+
+	m_nSeekFrame = nFrame;
+	m_IsMove = true;
+}
+
 bool CDemuxer::SetMoveAudioCount(uint64_t audioCount)
 {
 	double ret;
@@ -666,7 +741,7 @@ bool CDemuxer::SeekFrame(int nFrame)
 		ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, AVSEEK_FLAG_FRAME);
 		if (ret > -1)
 		{
-			_d("[DEMUXER:SeekFrame.ch%d] ret : %d , tm(%lld)seek completed\n", m_nChannel, ret, tm);
+			_d("[DEMUXER:SeekFrame.ch%d] ret : %d , tm(%lld) seek completed\n", m_nChannel, ret, tm);
 			if (m_bIsRerverse == true)
 			{
 				m_reverse_pts = tm;
@@ -678,6 +753,28 @@ bool CDemuxer::SeekFrame(int nFrame)
 		}
 		m_seek_pts = tm * AV_TIME_BASE / timeBase.den;
 		//m_start_pts = high_resolution_clock::now();
+	}
+}
+
+bool CDemuxer::SeekPTS(uint64_t pts)
+{
+	uint64_t num = m_info["num"].asInt();
+	uint64_t den = m_info["den"].asInt();
+
+	int ret = 0;
+	if (m_nChannel < 4)
+	{
+		//ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, 0);
+		//avcodec_flush_buffers(fmt_ctx->streams[0]->codec);
+		ret = avformat_seek_file(fmt_ctx, 0, 0, pts, pts, AVSEEK_FLAG_FRAME);
+		if (ret > -1)
+		{
+			_d("[DEMUXER:SeekPTS.ch%d] ret : %d , pts (%lld) seek completed\n", m_nChannel, ret, pts);
+		}
+		else
+		{
+			cout << "[DEMUXER.SeekPTS.ch" << m_nChannel << "] seek error " << endl;
+		}
 	}
 }
 
@@ -714,7 +811,7 @@ bool CDemuxer::Reverse()
 		ret = avformat_seek_file(fmt_ctx, 0, 0, m_reverse_pts, m_reverse_pts, AVSEEK_FLAG_BACKWARD);
 		if (ret < 0)
 		{
-			_d("[DEMUXER:REVERSE.ch%d] ret : %d, not work (m_reverse_pts : %lld)\n", m_nChannel, ret, m_reverse_pts);
+			_d("[DEMUXER:REVERSE.ch%d] ret : %d, not work, first(%lld), (m_reverse_pts : %lld)\n", m_nChannel, ret, m_file_first_pts, m_reverse_pts);
 			return false;
 		}
 		else
@@ -724,7 +821,7 @@ bool CDemuxer::Reverse()
 #if 1
 		if (m_file_first_pts > ((m_reverse_pts / timeBase.den) * AV_TIME_BASE))
 		{
-			_d("[DEMUXER:REVERSE.ch%d] file first arrived, file_first_pts : %lld, reverse_seek pts : %lld)\n", m_nChannel, m_file_first_pts, ((m_reverse_pts / timeBase.den) * AV_TIME_BASE));
+			_d("[DEMUXER:REVERSE.ch%d] file first arrived, file_first_pts : %lld, reverse_seek pts : %lld), (%lld)\n", m_nChannel, m_file_first_pts, ((m_reverse_pts / timeBase.den) * AV_TIME_BASE), m_reverse_pts);
 			return false;
 		}
 #endif

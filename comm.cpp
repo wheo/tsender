@@ -215,15 +215,8 @@ bool CCommMgr::RX()
 					for (int i = 0; i < m_nChannel; i++)
 					{
 						m_CDemuxer[i]->SetReverse(false);
+						m_CDemuxer[i]->SetPause(false);
 						m_CDemuxer[i]->SetSpeed(m_nSpeed);
-					}
-					if (m_nSpeed == 1)
-					{
-						for (int i = 0; i < m_nChannel; i++)
-						{
-							m_CDemuxer[i]->SetPause(true);
-						}
-						Sync();
 					}
 				}
 				else
@@ -255,6 +248,7 @@ bool CCommMgr::RX()
 					cout << "[COMM] Move sec : " << m_nMoveSec << endl;
 					for (int i = 0; i < m_nChannel; i++)
 					{
+						m_CDemuxer[i]->SetPause(false);
 						m_CDemuxer[i]->SetMoveSec(m_nMoveSec);
 					}
 					Sync();
