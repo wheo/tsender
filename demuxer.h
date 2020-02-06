@@ -54,7 +54,6 @@ public:
 	bool SetMoveAudioCount(uint64_t audioCount);
 	bool Reverse();
 	bool SeekFrame(int nFrame);
-	bool SeekPTS(uint64_t pts);
 	int FindFileIndexFromFrame(uint64_t nFrame);
 	int AudioSeek(uint64_t audioCount);
 	bool SyncNReset();

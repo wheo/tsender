@@ -586,7 +586,7 @@ int CDemuxer::Demux(Json::Value files)
 							{
 								//비디오 패킷 put 완료 후 시점
 								pkt_dup_count--;
-								cout << "[DEMUXER.ch" << m_nChannel << "] put!!!!!!!, diff (" << pts_diff << "), (" << lldur << "), pts : (" << pkt.pts << "), old (" << old_pts << ")" << endl;
+								//cout << "[DEMUXER.ch" << m_nChannel << "] put!!!!!!!, diff (" << pts_diff << "), (" << lldur << "), pts : (" << pkt.pts << "), old (" << old_pts << ")" << endl;
 								if (pkt_dup_count == 0)
 								{
 									usleep(10);
@@ -769,28 +769,6 @@ bool CDemuxer::SeekFrame(int nFrame)
 		}
 		m_seek_pts = tm * AV_TIME_BASE / m_timeBase.den;
 		//m_start_pts = high_resolution_clock::now();
-	}
-}
-
-bool CDemuxer::SeekPTS(uint64_t pts)
-{
-	uint64_t num = m_info["num"].asInt();
-	uint64_t den = m_info["den"].asInt();
-
-	int ret = 0;
-	if (m_nChannel < 4)
-	{
-		//ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, 0);
-		//avcodec_flush_buffers(fmt_ctx->streams[0]->codec);
-		ret = avformat_seek_file(fmt_ctx, 0, 0, pts, pts, AVSEEK_FLAG_FRAME);
-		if (ret > -1)
-		{
-			_d("[DEMUXER:SeekPTS.ch%d] ret : %d , pts (%lld) seek completed\n", m_nChannel, ret, pts);
-		}
-		else
-		{
-			cout << "[DEMUXER.SeekPTS.ch" << m_nChannel << "] seek error " << endl;
-		}
 	}
 }
 
