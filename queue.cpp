@@ -126,7 +126,7 @@ int CQueue::PutVideo(AVPacket *pkt, uint64_t seek_pts)
 		av_packet_ref(&m_pkt[m_nWritePos], pkt);
 		//av_packet_unref(pkt);
 #if 0
-		_d("[QUEUE.ch%d] put pos : ( %d ), stream_index : %d, flags : %d, data ( %p ), pts ( %d )\n", m_nChannel, m_nWritePos, pkt->stream_index, m_pkt[m_nWritePos].flags, m_pkt[m_nWritePos].data, m_pkt[m_nWritePos].pts);
+		_d("[QUEUE.ch%d] put pos : ( %d ), stream_index : %d, flags : %d, pts ( %d )\n", m_nChannel, m_nWritePos, pkt->stream_index, m_pkt[m_nWritePos].flags, m_pkt[m_nWritePos].pts);
 #endif
 		ret_size = m_pkt[m_nWritePos].size;
 		m_nWritePos++;

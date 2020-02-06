@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
 	//void av_register_all()’ is deprecated [-Wdeprecated-declarations]
 	//av_register_all();
 	//avfilter_register_all();
+	av_log_set_level(AV_LOG_ERROR);
 	_d("[MAIN] Started...\n");
 	CCore *core = new CCore();
 	core->Create();

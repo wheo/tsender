@@ -169,6 +169,7 @@ void CSender::Run()
 	bool reverseOld = false;
 	uint64_t old_pts = 0;
 	int64_t pts_diff = 0;
+	int64_t pts_diff_old = 0;
 
 	m_now = 0;
 
@@ -176,14 +177,14 @@ void CSender::Run()
 	string type = m_info["type"].asString();
 
 	int counter = 0;
+	int nFrame = 0;
 
 	while (!m_bExit)
 	{
 		isPause = m_IsPause;
 		nSpeed = m_nSpeed;
-		isReverse = m_bIsRerverse;
 
-		if (isReverse == true)
+		if (m_bIsRerverse == true)
 		{
 			if (m_nChannel < 4)
 			{
@@ -199,20 +200,19 @@ void CSender::Run()
 			target_time = delay / nSpeed;
 		}
 
-		reverseOld = isReverse;
-
-		tick_diff = 0;
-		while (tick_diff < target_time - 5)
+		m_end = high_resolution_clock::now();
+		tick_diff = duration_cast<microseconds>(m_end - m_begin).count();
+		if (tick_diff < target_time)
 		{
-			this_thread::sleep_for(microseconds(1));
-			m_end = high_resolution_clock::now();
-			tick_diff = duration_cast<microseconds>(m_end - m_begin).count();
+			continue;
 		}
 		m_begin = m_end;
+
 		sended += tick_diff;
 		want_send += target_time;
 		counter++;
-		//cout << "[SENDER.ch" << m_nChannel << "] (" << counter << "), (" << tick_diff << "), (" << sended << "), (" << target_time << "), (" << want_send << ")" << endl;
+		nFrame++;
+		//cout << "[SENDER.ch" << m_nChannel << "] (" << nFrame << "), (" << tick_diff << "), (" << sended << "), (" << target_time << "), (" << want_send << ")" << endl;
 		//cout << "[SENDER.ch" << m_nChannel << "] tick_diff : " << tick_diff << ", speed : " << nSpeed << endl;
 
 		if (isPause != pauseOld)
@@ -242,7 +242,7 @@ void CSender::Run()
 				if (m_queue->GetVideo(&pkt, &m_seek_pts) > 0)
 				{
 					m_current_pts = pkt.pts;
-					pts_diff = llabs(m_current_pts - old_pts);
+					pts_diff = m_current_pts - old_pts;
 
 					if (keyframe_speed > nSpeed)
 					{
@@ -258,12 +258,20 @@ void CSender::Run()
 					}
 
 					//cout << "[SENDER.ch" << m_nChannel << "] pkt.flags (" << pkt.flags << "), (" << counter << "), (" << pts_diff << "), (" << sended << "), (" << target_time << "), (" << want_send << ")" << endl;
-
+					m_now = pkt.pts * AV_TIME_BASE / m_timeBase.den;
 					if (m_is_pframe_skip == false || pkt.flags == AV_PKT_FLAG_KEY)
 					{
 						if (send_bitstream(pkt.data, pkt.size))
 						{
-							cout << "[SENDER.ch" << m_nChannel << "] send_bitstream (" << pkt.pts << "), diff(" << pts_diff << ") sended time (" << sended << "), (" << pkt.flags << ") is_pframe_skip : " << std::boolalpha << m_is_pframe_skip << endl;
+							//cout << "[SENDER.ch" << m_nChannel << "] send_bitstream (" << pkt.pts << "), (" << m_now << "), (" << nFrame << "), diff(" << pts_diff << ") sended time (" << sended << "), (" << pkt.flags << ") is_pframe_skip : " << std::boolalpha << m_is_pframe_skip << endl;
+							if (m_nChannel > 4)
+							{
+								if (pts_diff != pts_diff_old)
+								{
+									cout << "[SENDER.ch" << m_nChannel << "] !!!! frame (" << nFrame << "), (" << pts_diff << "), (" << pts_diff_old << ") pts (" << m_current_pts << "), (" << old_pts << ")" << endl;
+								}
+							}
+
 							sended = 0;
 							want_send = 0;
 							counter = 0;
@@ -274,7 +282,6 @@ void CSender::Run()
 						}
 					}
 
-					m_now = pkt.pts * AV_TIME_BASE / m_timeBase.den;
 					if (m_queue)
 					{
 						m_queue->RetVideo(&pkt);
@@ -336,6 +343,7 @@ void CSender::Run()
 			}
 		}
 
+		pts_diff_old = pts_diff;
 		old_pts = m_current_pts;
 	}
 }

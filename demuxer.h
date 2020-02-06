@@ -75,6 +75,7 @@ protected:
 	bool m_bIsRerverse;
 	int64_t m_currentDuration;
 	int64_t nFrame;
+	int64_t lldur;
 	int m_n_gop;
 	//int64_t m_start_pts;
 
