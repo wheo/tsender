@@ -62,6 +62,7 @@ protected:
 
 private:
     bool m_bIsPause;
+    bool m_audioseek;
     int m_nSpeed;
     int m_nMoveSec;
 

@@ -1,8 +1,8 @@
 #ifndef _QUEUE_H_
 #define _QUEUE_H_
 
-#define MAX_NUM_QUEUE 10
-#define MAX_NUM_AUDIO_QUEUE 4
+#define MAX_NUM_QUEUE 2
+#define MAX_NUM_AUDIO_QUEUE 2
 #define QUE_INFINITE -1
 #define MIN_BUF_FRAME 9
 
@@ -14,6 +14,12 @@ typedef struct tagELEM
 	int len;
 } ELEM;
 
+typedef struct tagVIDEOELEM
+{
+	AVPacket *pkt;
+	char isvisible;
+} VIDEOELEM;
+
 class CQueue
 {
 public:
@@ -23,11 +29,11 @@ public:
 	void SetInfo(int nChannel, string type);
 	void Clear();
 
-	int PutVideo(AVPacket *pkt);
-	int PutAudio(char *pData, int nSize, uint64_t start_pts);
+	int PutVideo(AVPacket *pkt, char isvisible);
+	int PutAudio(char *pData, int nSize);
 
-	int GetVideo(AVPacket *pkt, uint64_t *start_pts);
-	void *GetAudio(uint64_t *start_pts);
+	int GetVideo(AVPacket *pkt, char *isvisible);
+	void *GetAudio();
 
 	void RetVideo(AVPacket *pkt);
 	void RetAudio(void *p);
@@ -77,6 +83,7 @@ private:
 	pthread_mutex_t m_mutex;
 
 	AVPacket m_pkt[MAX_NUM_QUEUE];
+	VIDEOELEM m_ve[MAX_NUM_QUEUE];
 	ELEM m_e[MAX_NUM_AUDIO_QUEUE];
 };
 

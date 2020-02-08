@@ -186,7 +186,6 @@ bool CCommMgr::RX()
 							m_CDemuxer[i]->SetReverse(false);
 							m_CDemuxer[i]->SetSpeed(0);
 						}
-
 						if (m_bIsPause == false)
 						{
 							m_CDemuxer[6]->SetMoveSec(m_nMoveSec);

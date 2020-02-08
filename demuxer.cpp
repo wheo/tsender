@@ -286,7 +286,7 @@ int CDemuxer::Demux(Json::Value files)
 	bool isReverse = false;
 	bool reverseOld = false;
 	bool MoveFirstPacket = false;
-
+	char isvisible = 1;
 	for (int i = 0; i < files.size(); i++)
 	{
 		value = files[i];
@@ -442,6 +442,8 @@ int CDemuxer::Demux(Json::Value files)
 
 				if (m_isFOF == false)
 				{
+					//화면에 그림
+					isvisible = 1;
 					if (isPause == false || (m_sync_pts > 0 && m_sync_pts > m_current_pts || MoveFirstPacket == true))
 					{
 						if (m_sync_pts < m_current_pts)
@@ -452,6 +454,8 @@ int CDemuxer::Demux(Json::Value files)
 						else
 						{
 							//cout << "[DEMUXER.ch" << m_nChannel << "] sync_pts : " << m_sync_pts << ", cur_pts : " << m_current_pts << endl;
+							// 화면에 안그림
+							isvisible = 0;
 						}
 
 						av_packet_unref(&pkt);
@@ -571,7 +575,7 @@ int CDemuxer::Demux(Json::Value files)
 #endif
 						if (pkt.pts > -1)
 						{
-							if (m_queue->PutVideo(&pkt) > 0)
+							if (m_queue->PutVideo(&pkt, isvisible) > 0)
 							{
 								//비디오 패킷 put 완료 후 시점
 								pkt_dup_count--;
@@ -644,7 +648,7 @@ int CDemuxer::Demux(Json::Value files)
 
 				if (m_IsAudioRead == true)
 				{
-					if (m_queue->PutAudio(audio_buf, AUDIO_BUFF_SIZE, m_seek_pts) > 0)
+					if (m_queue->PutAudio(audio_buf, AUDIO_BUFF_SIZE) > 0)
 					{
 						m_IsAudioRead = false;
 					}

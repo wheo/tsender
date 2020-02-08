@@ -256,7 +256,8 @@ void CSender::Run()
 			while (m_bExit == false && m_queue)
 			{
 				int size = 0;
-				size = m_queue->GetVideo(&pkt, &m_seek_pts);
+				char isvisible;
+				size = m_queue->GetVideo(&pkt, &isvisible);
 				if (size > 0)
 				{
 					m_current_pts = pkt.pts;
@@ -278,9 +279,8 @@ void CSender::Run()
 					m_now = pkt.pts * AV_TIME_BASE / m_timeBase.den;
 					if (m_is_pframe_skip == false || pkt.flags == AV_PKT_FLAG_KEY)
 					{
-						if (send_bitstream(pkt.data, pkt.size))
+						if (send_bitstream(pkt.data, pkt.size, isvisible))
 						{
-
 #if 0
 							cout << "[SENDER.ch" << m_nChannel << "] send_bitstream (" << pkt.pts << "), (" << m_now << "), (" << nFrame << "), diff(" << pts_diff << ") sended time (" << sended << "), (" << pkt.flags << ") is_pframe_skip : " << std::boolalpha << m_is_pframe_skip << endl;
 							if (pts_diff != pts_diff_old)
@@ -332,7 +332,7 @@ void CSender::Run()
 				}
 				else
 				{
-					ELEM *pe = (ELEM *)m_queue->GetAudio(&m_seek_pts);
+					ELEM *pe = (ELEM *)m_queue->GetAudio();
 					if (pe && pe->len > 0)
 					{
 						m_nAudioCount++;
@@ -378,7 +378,7 @@ bool CSender::send_audiostream(char *buff, int size)
 	}
 }
 
-bool CSender::send_bitstream(uint8_t *stream, int size)
+bool CSender::send_bitstream(uint8_t *stream, int size, char isvisible)
 {
 	int tot_packet = 0;
 	int cur_packet = 1;
@@ -397,8 +397,6 @@ bool CSender::send_bitstream(uint8_t *stream, int size)
 	char reserve[5] = {
 		0,
 	};
-
-	char is_visible = 1; // 0(화면에 전시하지 않음), 1(화면에 전시함)
 
 	reserve[0] = 1; // 0 : 노멀 1 : 확장
 
@@ -450,7 +448,7 @@ bool CSender::send_bitstream(uint8_t *stream, int size)
 		if (reserve[0] == 1)
 		{
 			// ..... here
-			memcpy(&buffer[PACKET_HEADER_SIZE + 5], &is_visible, 1);
+			memcpy(&buffer[PACKET_HEADER_SIZE + 5], &isvisible, 1);
 			memcpy(&buffer[PACKET_HEADER_SIZE + 6], &m_current_pts, 8);
 			memcpy(&buffer[PACKET_HEADER_SIZE + 14], &m_now, 8);
 		}

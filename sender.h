@@ -14,7 +14,7 @@ public:
 	CSender(void);
 	~CSender(void);
 
-	bool send_bitstream(uint8_t *stream, int size);
+	bool send_bitstream(uint8_t *stream, int size, char isvisible);
 	bool send_audiostream(char *buff, int size);
 
 	int ReadSocket(uint8_t *buffer, unsigned bufferSize);
