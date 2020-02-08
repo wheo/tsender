@@ -22,7 +22,6 @@ public:
 	void SetAVFormatContext(AVFormatContext **fmt_ctx);
 	void Delete();
 	void SetSpeed(int speed);
-	void SetPause();
 	void SetPause(bool state);
 	void SetSyncPTS(uint64_t pts);
 
@@ -36,26 +35,17 @@ public:
 
 	//bool Play();
 	void log(int type, int state);
-	bool GetOutputs(string basepath);
-	bool GetChannelFiles(string path);
-	bool GetChannelFilesRerverse(string path);
-	Json::Value GetThumbnail(int nSec);
-	//int Demux(string src_filename);
-	int Demux(Json::Value files);
-	//int DemuxRerverse(string src_filename);
-	bool SetMoveSec(int nSec);
-	bool Reverse();
-	bool SeekFrame(int nFrame);
-	uint64_t GetCurrentPTS() { return m_current_pts; }
-	int FindFileIndexFromFrame(uint64_t nFrame);
-
 	bool SetQueue(CQueue **queue, int nChannel);
+	void Enable() { m_enable = true; }
+	void Disable() { m_enable = false; }
 
 protected:
 	int m_nChannel;		// 현재 채널 넘버
 	Json::Value m_info; // 채널 정보 json
 	Json::Value m_attr; // 채널 공유 속성 attribute
 	CQueue *m_queue;
+
+	bool m_enable;
 
 	char m_strShmPrefix[32];
 	int m_nRead;

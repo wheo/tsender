@@ -19,6 +19,7 @@
 #include <sys/time.h>
 #include <semaphore.h>
 #include <sys/mman.h>
+#include <ftw.h>
 
 //C++ lib
 #include <chrono>
@@ -28,6 +29,7 @@
 #include <iomanip>
 #include <ctime>
 #include <string>
+#include <vector>
 
 using namespace std;
 using namespace std::chrono;
@@ -57,8 +59,8 @@ extern "C"
 #define __DUMP 0
 
 #define PACKET_HEADER_SIZE 24
-#define PACKET_HEADER_EXTEND_SIZE PACKET_HEADER_SIZE + 21
-#define PACKET_SIZE 4096
+#define PACKET_HEADER_EXTEND_SIZE PACKET_HEADER_SIZE + 22
+#define PACKET_SIZE 2048
 
 #ifdef DEBUG
 #undef DEBUG

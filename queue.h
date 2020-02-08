@@ -23,7 +23,7 @@ public:
 	void SetInfo(int nChannel, string type);
 	void Clear();
 
-	int PutVideo(AVPacket *pkt, uint64_t start_pts);
+	int PutVideo(AVPacket *pkt);
 	int PutAudio(char *pData, int nSize, uint64_t start_pts);
 
 	int GetVideo(AVPacket *pkt, uint64_t *start_pts);

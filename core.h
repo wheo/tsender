@@ -13,6 +13,7 @@ public:
 
 	bool Create();
 	void Delete();
+	void UndeleteFileDelete();
 
 	//bool GetOutputs(string basepath);
 

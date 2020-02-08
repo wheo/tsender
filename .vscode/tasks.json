@@ -1,26 +1,38 @@
 {
-	// tasks.json 형식에 대한 설명서는
-	// https://go.microsoft.com/fwlink/?LinkId=733558의 내용을 참조하세요.
-	"version": "2.0.0",
-	"reveal": "always",
-	"options": {
-		"cwd": "${workspaceRoot}"
-	},
-	"tasks": [
-		{
-			"label": "Makefile",
-			"type": "shell",
-			"command": "sh ${workspaceRoot}/make"
-		},
-		{
-			"label": "Build",
-			"type": "shell",
-			"command": "sh ${workspaceRoot}/.vscode/scripts/build.sh"
-		},
-		{
-			"label": "Generate ABI",
-			"type": "shell",
-			"command": "sh ${workspaceRoot}/.vscode/scripts/generate.sh ${fileDirname} ${fileBasenameNoExtension}"
-		}
-	]
+    "version": "2.0.0",
+    "reveal": "always",
+    "options": {
+        "cwd": "${workspaceRoot}"
+    },
+    "tasks": [
+        {
+            "label": "Makefile",
+            "type": "shell",
+            "command": "sh ${workspaceRoot}/make"
+        },
+        {
+            "label": "Build",
+            "type": "shell",
+            "command": "sh ${workspaceRoot}/.vscode/scripts/build.sh"
+        },
+        {
+            "label": "Generate ABI",
+            "type": "shell",
+            "command": "sh ${workspaceRoot}/.vscode/scripts/generate.sh ${fileDirname} ${fileBasenameNoExtension}"
+        },
+        {
+            "type": "shell",
+            "label": "g++ build active file",
+            "command": "/usr/bin/g++",
+            "args": [
+                "-g",
+                "${file}",
+                "-o",
+                "${fileDirname}/${fileBasenameNoExtension}"
+            ],
+            "options": {
+                "cwd": "/usr/bin"
+            }
+        }
+    ]
 }

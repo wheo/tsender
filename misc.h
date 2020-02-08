@@ -8,6 +8,10 @@ std::string get_current_time_and_date();
 std::ifstream::pos_type getFilesize(const char *filename);
 extern double rnd(double x, int digit);
 
+int rmdir_helper(string path, struct stat *sb, int tflag, struct FTW *ftpbuf);
+int rmdir_rf(string dir_to_remove);
+void delete_line(const char *file_name, int n);
+
 namespace
 {
 class __GET_TICK_COUNT

@@ -56,7 +56,6 @@ public:
 	bool SeekFrame(int nFrame);
 	int FindFileIndexFromFrame(uint64_t nFrame);
 	int AudioSeek(uint64_t audioCount);
-	bool SyncNReset();
 	void Disable();
 	void Enable();
 
@@ -74,9 +73,11 @@ protected:
 	bool m_bIsRerverse;
 	int64_t m_currentDuration;
 	int64_t nFrame;
-	int64_t lldur;
+	uint64_t m_lldur;
 	int m_n_gop;
+	bool m_isFOF;
 	//int64_t m_start_pts;
+	//bool m_b_ready_to_send_pts;
 
 private:
 	//mux_cfg_s m_mux_cfg;
@@ -100,6 +101,7 @@ private:
 	AVPacket m_pkt;
 	AVFormatContext *fmt_ctx;
 	int m_nSeekFrame;
+
 	int m_nMoveIdx;
 	bool m_bIsSync;
 	bool m_next_keyframe;
@@ -144,6 +146,7 @@ private:
 	Json::Value json;
 
 	pthread_mutex_t *m_mutex_demuxer;
+	pthread_cond_t m_sleepCond;
 	int m_nSpeed;
 	int open_codec_context(int *stream_idx, AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type);
 

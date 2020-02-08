@@ -100,22 +100,22 @@ void CQueue::Disable()
 	cout << "[QUEUE.ch" << m_nChannel << "] diabled now... " << m_nPacket << endl;
 }
 
-int CQueue::PutVideo(AVPacket *pkt, uint64_t seek_pts)
+int CQueue::PutVideo(AVPacket *pkt)
 {
-#if 1
+#if 0
 	if (m_seek_pts != seek_pts)
 	{
 		Clear();
 	}
-#endif
 	m_seek_pts = seek_pts;
+#endif
 	//int nCount = 0; // timeout 위한 용도
 	int ret_size = 0;
 
 	if (m_nMaxQueue <= m_nPacket)
 	{
 		//cout << "[QUEUE.ch" << m_nChannel << "] wait video put : " << m_nWritePos << endl;
-		this_thread::sleep_for(microseconds(10000));
+		this_thread::sleep_for(microseconds(1000));
 		return 0;
 	}
 
@@ -151,7 +151,7 @@ int CQueue::PutVideo(AVPacket *pkt, uint64_t seek_pts)
 int CQueue::PutAudio(char *pData, int nSize, uint64_t seek_pts)
 {
 	int nCount = 0;
-#if 1
+#if 0
 	if (m_seek_pts != seek_pts)
 	{
 		Clear();
@@ -162,7 +162,7 @@ int CQueue::PutAudio(char *pData, int nSize, uint64_t seek_pts)
 	if (m_nMaxAudioQueue <= m_nAudio)
 	{
 		//cout << "[QUEUE.ch" << m_nChannel << "] wait audio put : " << m_nWritePos << endl;
-		this_thread::sleep_for(microseconds(10000));
+		this_thread::sleep_for(microseconds(1000));
 		return 0;
 	}
 	ELEM *pe = &m_e[m_nWriteAudioPos];
@@ -211,7 +211,7 @@ int CQueue::GetVideo(AVPacket *pkt, uint64_t *start_pts)
 	{
 		av_init_packet(pkt);
 		av_packet_ref(pkt, &m_pkt[m_nReadPos]);
-		av_packet_unref(&m_pkt[m_nReadPos]);
+		//av_packet_unref(&m_pkt[m_nReadPos]);
 		m_current_video_pts = pkt->pts;
 #if 0
 		cout << "[QUEUE.ch" << m_nChannel << "] get pos (" << m_nReadPos << "), size (" << pkt->size << "), pts (" << pkt->pts << ") m_nPacket : " << m_nPacket << endl;
@@ -288,6 +288,7 @@ void CQueue::RetVideo(AVPacket *pkt)
 	pthread_mutex_lock(&m_mutex);
 
 	av_packet_unref(pkt);
+	av_packet_unref(&m_pkt[m_nReadPos]);
 
 	m_nReadPos++;
 	if (m_nReadPos >= m_nMaxQueue)

@@ -14,6 +14,29 @@ Json::Value GetOutputFileList(string basepath)
 	string infopath;
 	string metabase;
 	string metapath;
+
+	vector<string> v;
+
+	//output이라는 이름으로 하드코딩함
+	string except_output = "output/";
+
+	string srcfile = "deletelist.txt";
+	string undelete_file;
+
+	ifstream ifs_d;
+	ifs_d.open(srcfile);
+
+	if (ifs_d.is_open())
+	{
+		while (getline(ifs_d, undelete_file))
+		{
+			v.push_back(undelete_file);
+		}
+	}
+	ifs_d.close();
+
+	bool is_continue = false;
+
 	DIR *dir = opendir(basepath.c_str());
 	struct dirent *ent;
 	while ((ent = readdir(dir)) != NULL)
@@ -22,10 +45,30 @@ Json::Value GetOutputFileList(string basepath)
 		{
 			if (ent->d_type == DT_DIR)
 			{
+				stringstream sstm;
+				sstm << basepath << "/" << ent->d_name;
+
+				cout << "v : " << v.size() << endl;
+
+				for (vector<string>::iterator iter = v.begin(); iter != v.end(); iter++)
+				{
+					cout << *iter << ", " << sstm.str() << endl;
+					if (*iter == sstm.str())
+					{
+						cout << "already delete list file" << endl;
+						is_continue = true;
+						break;
+					}
+				}
+
+				if (is_continue == true)
+				{
+					continue;
+				}
+
 				b["idx"] = idx;
 				b["path"] = ent->d_name;
-#if 1
-				stringstream sstm;
+				sstm.str("");
 
 				sstm << basepath << "/" << ent->d_name << "/"
 					 << "info.json";
@@ -53,7 +96,6 @@ Json::Value GetOutputFileList(string basepath)
 					ifs.close();
 					b["bit_state"] = info["info"]["bit_state"];
 				}
-#endif
 
 				DIR *sub_dir = opendir(metabase.c_str());
 				struct dirent *sub_ent;
@@ -163,6 +205,106 @@ std::ifstream::pos_type getFilesize(const char *filename)
 {
 	std::ifstream in(filename, std::ifstream::ate | std::ifstream::binary);
 	return in.tellg();
+}
+
+static int rmdir_helper(const char *path, const struct stat *sb, int tflag, struct FTW *ftwbuf)
+{
+	string srcfile = "deletelist.txt";
+
+	ofstream ofs;
+	ofs.open(srcfile);
+	switch (tflag)
+	{
+	case FTW_D:
+	case FTW_DP:
+		if (rmdir(path) == -1)
+		{
+			perror("rmdir");
+			//cout << path << " not rmdir" << endl;
+			ofs << path << endl;
+		}
+		else
+		{
+			cout << "rmdir : " << path << endl;
+		}
+		break;
+	case FTW_F:
+	case FTW_SL:
+		if (unlink(path) == -1)
+		{
+			//unlink 시 에러
+			perror("unlink");
+			cout << path << " not unlink" << endl;
+			ofs << path << endl;
+		}
+		else
+		{
+			cout << "unlink : " << path << endl;
+		}
+
+		break;
+	default:
+		cout << "[rmhelper] do nothing" << endl;
+	}
+
+	ofs.close();
+
+	return 0;
+}
+
+int rmdir_rf(string dir_to_remove)
+{
+	int flags = 0;
+	if (dir_to_remove.c_str() == NULL)
+	{
+		return 1;
+	}
+
+	flags |= FTW_DEPTH;
+
+	if (nftw(dir_to_remove.c_str(), rmdir_helper, 10, flags) == -1)
+	{
+		perror("nftw");
+		return 1;
+	}
+	return 0;
+}
+
+void delete_line(const char *file_name, int n)
+{
+	// open file in read mode or in mode
+	ifstream is(file_name);
+
+	// open file in write mode or out mode
+	ofstream ofs;
+	ofs.open("temp.txt", ofstream::out);
+
+	// loop getting single characters
+	char c;
+	int line_no = 1;
+	while (is.get(c))
+	{
+		// if a newline character
+		if (c == '\n')
+			line_no++;
+
+		// file content not to be deleted
+		if (line_no != n)
+			ofs << c;
+	}
+
+	// closing output file
+	ofs.close();
+
+	// closing input file
+	is.close();
+
+	// remove the original file
+	remove(file_name);
+
+	// rename the file
+	rename("temp.txt", file_name);
+	cout << "delete_line completed" << endl;
 }
 
 double rnd(double x, int digit)

@@ -83,6 +83,7 @@ bool CCommMgr::Open(int nPort, Json::Value attr)
 {
 	m_nChannel = 0;
 	m_nSpeed = 1;
+	m_bIsPause = false;
 	m_bIsRunning = false;
 	m_bIsReverse = false;
 	m_bIsReverseOld = false;
@@ -148,6 +149,7 @@ bool CCommMgr::RX()
 
 				m_attr["target"] = root["info"]["target"].asString();
 				m_attr["bit_state"] = root["info"]["bit_state"];
+				m_nMoveSec = root["info"]["move_sec"].asInt();
 				if (!m_bIsRunning)
 				{
 					m_bIsRunning = true;
@@ -159,6 +161,17 @@ bool CCommMgr::RX()
 						m_CDemuxer[m_nChannel]->Create(m_attr["output_channels"][m_nChannel], m_attr, m_nChannel);
 						m_nChannel++;
 					}
+					for (int i = 0; i < m_nChannel; i++)
+					{
+						m_CDemuxer[i]->SetPause(true);
+					}
+					Sync();
+					for (int i = 0; i < m_nChannel; i++)
+					{
+						m_CDemuxer[i]->SetSpeed(0);
+						m_CDemuxer[i]->SetPause(false);
+					}
+					m_bIsPause = false;
 				}
 				else
 				{
@@ -169,20 +182,34 @@ bool CCommMgr::RX()
 						{
 							//멈춤을 푼다
 							m_CDemuxer[i]->SetPause(false);
+							//정배로 재생한다
+							m_CDemuxer[i]->SetReverse(false);
+							m_CDemuxer[i]->SetSpeed(0);
 						}
+
+						if (m_bIsPause == false)
+						{
+							m_CDemuxer[6]->SetMoveSec(m_nMoveSec);
+							m_CDemuxer[7]->SetMoveSec(m_nMoveSec);
+						}
+						m_bIsPause = false;
 					}
 				}
 			}
 			else if (root["cmd"] == "play_reverse")
 			{
-				if (m_bIsRunning)
+				m_nMoveSec = root["info"]["move_sec"].asInt();
+				m_nSpeed = root["info"]["speed"].asInt();
+				if (m_bIsRunning == true)
 				{
-					//m_bIsReverse = !m_bIsReverse;
-					m_nSpeed = root["info"]["speed"].asInt();
 					for (int i = 0; i < m_nChannel; i++)
 					{
-						m_CDemuxer[i]->SetReverse(true);
+						//2초 보정
 						m_CDemuxer[i]->SetPause(false);
+						m_bIsPause = false;
+						m_CDemuxer[i]->SetMoveSec(m_nMoveSec + 2);
+						m_CDemuxer[i]->SetReverse(true);
+						m_bIsReverse = true;
 						m_CDemuxer[i]->SetSpeed(m_nSpeed);
 					}
 				}
@@ -208,15 +235,36 @@ bool CCommMgr::RX()
 			else if (root["cmd"] == "play_speed_up")
 			{
 				//배속 재생
-				if (m_bIsRunning)
+				if (m_bIsRunning == true)
 				{
 					//실행 중이어야 배속 재생이 됨
 					m_nSpeed = root["info"]["speed"].asInt();
+					m_nMoveSec = root["info"]["move_sec"].asInt();
+
 					for (int i = 0; i < m_nChannel; i++)
 					{
-						m_CDemuxer[i]->SetReverse(false);
+						// +2를 하는 이유는 보정
 						m_CDemuxer[i]->SetPause(false);
+						m_bIsPause = false;
+						m_CDemuxer[i]->SetMoveSec(m_nMoveSec + 2);
+						m_CDemuxer[i]->SetReverse(false);
+						m_bIsReverse = false;
 						m_CDemuxer[i]->SetSpeed(m_nSpeed);
+					}
+#if 0
+					for (int i = 0; i < m_nChannel; i++)
+					{
+						m_CDemuxer[i]->SetPause(true);
+					}
+					Sync();
+#endif
+					//usleep(300000);
+
+					for (int i = 0; i < m_nChannel; i++)
+					{
+						//m_CDemuxer[i]->SetReverse(false);
+						//m_CDemuxer[i]->SetSpeed(m_nSpeed);
+						//m_CDemuxer[i]->SetPause(false);
 					}
 				}
 				else
@@ -227,13 +275,18 @@ bool CCommMgr::RX()
 			else if (root["cmd"] == "play_pause")
 			{
 				//멈춤
-				if (m_bIsRunning)
+				m_nMoveSec = root["info"]["move_sec"].asInt();
+				if (m_bIsRunning == true)
 				{
-					for (int i = 0; i < m_nChannel; i++)
+					if (m_bIsPause == false)
 					{
-						m_CDemuxer[i]->SetPause(true);
+						for (int i = 0; i < m_nChannel; i++)
+						{
+							m_CDemuxer[i]->SetPause(true);
+						}
+						m_bIsPause = true;
+						Sync();
 					}
-					Sync();
 				}
 				else
 				{
@@ -245,10 +298,11 @@ bool CCommMgr::RX()
 				if (m_bIsRunning)
 				{
 					m_nMoveSec = root["info"]["move_sec"].asInt();
+					m_nSpeed = root["info"]["speed"].asInt();
 					cout << "[COMM] Move sec : " << m_nMoveSec << endl;
 					for (int i = 0; i < m_nChannel; i++)
 					{
-						m_CDemuxer[i]->SetPause(false);
+						//m_CDemuxer[i]->SetPause(false);
 						m_CDemuxer[i]->SetMoveSec(m_nMoveSec);
 					}
 					Sync();
@@ -309,14 +363,16 @@ bool CCommMgr::RX()
 				target = sstm.str();
 				cout << "[COMM] delete target : " << target << endl;
 				sstm.str("");
-				sstm << "rm -rf " << target;
-				cout << sstm.str() << endl;
+				//sstm << "rm -rf " << target;
+				//cout << sstm.str() << endl;
+
 				if (target.length() > 0)
 				{
 					//첫 문자가 / 면 안됨, 1글자여서도 안됨 (삭제 사고 방지)
 					if (target.substr(0, 1).compare("/") != 0)
 					{
-						system(sstm.str().c_str()); // 실제 삭제
+						//system(sstm.str().c_str()); // 실제 삭제
+						rmdir_rf(target);
 					}
 				}
 				root = GetOutputFileList(m_attr["file_dst"].asString());
@@ -357,18 +413,44 @@ bool CCommMgr::TX(char *buff, int size)
 
 void CCommMgr::Sync()
 {
+	usleep(320000); // 1,000,000 = 1초
 	uint64_t max_pts = 0;
-	for (int i = 0; i < 4; i++)
+	int max_index = 0;
+	int state = m_attr["bit_state"].asInt();
+	int result = 0;
+	for (int i = 0; i < 6; i++)
 	{
-		cout << "[COMM] Channel : " << i << ", PTS : " << m_CDemuxer[i]->GetCurrentPTS() << endl;
+		result = state & (1 << i);
+		if (state > 0)
+		{
+			//cout << "[COMM] Channel : " << m_nChannel << "] bit state is " << state << ", result : " << result << endl;
+			if (result < 1)
+			{
+				//cout << "[COMM] Channel : " << m_nChannel << "] is not use" << endl;
+				continue;
+			}
+		}
+		cout << "[COMM] Channel : " << i << ", current pts : " << m_CDemuxer[i]->GetCurrentPTS() << endl;
 		if (max_pts < m_CDemuxer[i]->GetCurrentPTS())
 		{
 			max_pts = m_CDemuxer[i]->GetCurrentPTS();
+			max_index = i;
 		}
 	}
-	cout << "[COMM] sync pts : " << max_pts << endl;
-	for (int i = 0; i < 4; i++)
+	cout << "[COMM] sync pts (" << max_index << ") : " << max_pts << endl;
+
+	for (int i = 0; i < 6; i++)
 	{
+		result = state & (1 << i);
+		if (state > 0)
+		{
+			//cout << "[COMM] Channel : " << m_nChannel << "] bit state is " << state << ", result : " << result << endl;
+			if (result < 1)
+			{
+				//cout << "[COMM] Channel : " << m_nChannel << "] is not use" << endl;
+				continue;
+			}
+		}
 		m_CDemuxer[i]->SetSyncPTS(max_pts);
 	}
 }
@@ -380,17 +462,6 @@ void CCommMgr::Delete()
 	{
 		SAFE_DELETE(m_CDemuxer[i]);
 		cout << "[COMM] channel " << i << " has been deleted" << endl;
-	}
-}
-
-bool CCommMgr::SyncNReset()
-{
-	if (m_CDemuxer)
-	{
-		for (int i = 0; i < m_nChannel; i++)
-		{
-			m_CDemuxer[i]->SyncNReset();
-		}
 	}
 }
 

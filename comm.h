@@ -36,7 +36,6 @@ public:
     ~CCommMgr();
 
     bool Open(int nPort, Json::Value attr);
-    bool SyncNReset();
     bool Echo(char *buf);
     void Sync();
 
@@ -62,6 +61,7 @@ protected:
     pthread_mutex_t m_mutex_comm;
 
 private:
+    bool m_bIsPause;
     int m_nSpeed;
     int m_nMoveSec;
 

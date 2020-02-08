@@ -61,14 +61,9 @@ bool CCore::Create()
 
 			cout << "[CORE] version : " << attr["version"].asString() << endl;
 			cout << "[CORE] file_dst : " << attr["file_dst"].asString() << endl;
-#if 0
-			for (auto &value : m_root["output_channels"])
-			{
-				m_CSender[m_nChannel] = new CSender();
-				m_CSender[m_nChannel]->Create(m_root["output_channels"][m_nChannel], attr, m_nChannel);
-				m_nChannel++;
-			}
-#endif
+
+			UndeleteFileDelete();
+
 			//make core thread
 			//cout << "[CORE] Before Thread start" << endl;
 			Start();
@@ -101,6 +96,53 @@ bool CCore::Create()
 	}
 
 	return true;
+}
+
+void CCore::UndeleteFileDelete()
+{
+	cout << "[CORE] deletelist read " << endl;
+
+	vector<string> v;
+
+	string undelete_file;
+	string deleteline;
+	string srcfile = "deletelist.txt";
+
+	ifstream ifs_d;
+	ifs_d.open(srcfile);
+
+	if (ifs_d.is_open())
+	{
+		while (getline(ifs_d, undelete_file))
+		{
+			cout << "deletelist : " << undelete_file << endl;
+			rmdir_rf(undelete_file);
+#if 0
+			if (unlink(undelete_file.c_str()) == -1)
+			
+			{
+				cout << "[CORE] delete error : " << undelete_file << endl;
+				v.push_back(undelete_file);
+			}
+			else
+			{
+				cout << "[CORE] delete completed : " << undelete_file << endl;
+			}
+#endif
+		}
+	}
+	ifs_d.close();
+	unlink(srcfile.c_str());
+
+	ofstream ofs(srcfile.data());
+	if (ofs.is_open())
+	{
+		for (vector<string>::iterator iter = v.begin(); iter != v.end(); iter++)
+		{
+			ofs << *iter << endl;
+		}
+	}
+	ofs.close();
 }
 
 void CCore::Run()
