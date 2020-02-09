@@ -335,7 +335,7 @@ void CSender::Run()
 						if (send_audiostream(pe->p, AUDIO_BUFF_SIZE, status))
 						{
 #if 0
-								cout << "[SENDER.ch" << m_nChannel << "] send_audiotream sended(" << AUDIO_BUFF_SIZE << "), AudioCount : " << m_nAudioCount << endl;
+							cout << "[SENDER.ch" << m_nChannel << "] send_audiotream sended(" << AUDIO_BUFF_SIZE << "), AudioCount : " << m_nAudioCount << endl;
 #endif
 						}
 						else

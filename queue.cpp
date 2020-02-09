@@ -93,13 +93,13 @@ void CQueue::Enable()
 
 	//m_nReadPos = m_nWritePos;
 	//_d("[QUEUE] Enable packet outputing now...%d\n", m_nPacket);
-	cout << "[QUEUE.ch" << m_nChannel << "] Enable packet outputing now... " << m_nPacket << endl;
+	//cout << "[QUEUE.ch" << m_nChannel << "] Enable packet outputing now... " << m_nPacket << endl;
 }
 
 void CQueue::Disable()
 {
 	m_bEnable = false;
-	cout << "[QUEUE.ch" << m_nChannel << "] diabled now... " << m_nPacket << endl;
+	//cout << "[QUEUE.ch" << m_nChannel << "] diabled now... " << m_nPacket << endl;
 }
 
 int CQueue::PutVideo(AVPacket *pkt, char isvisible)
@@ -169,10 +169,12 @@ int CQueue::PutAudio(char *pData, int nSize, char status)
 		}
 		m_nAudio++;
 		m_audio_status = status;
+#if 1
 		if (m_nAudio > 0)
 		{
 			m_bEnable = true;
 		}
+#endif
 #if 0
 		cout << "[QUEUE.ch" << m_nChannel << "] m_nWriteAudioPos : " << m_nWriteAudioPos << ", size : " << pe->len << ", nAudio : " << m_nAudio << endl;
 #endif

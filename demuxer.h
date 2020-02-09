@@ -76,6 +76,7 @@ protected:
 	uint64_t m_lldur;
 	int m_n_gop;
 	bool m_isFOF;
+	bool m_isEOF;
 	//int64_t m_start_pts;
 	//bool m_b_ready_to_send_pts;
 
@@ -128,7 +129,6 @@ private:
 
 	uint64_t m_nTotalFrame;
 	int m_nTotalSec;
-	int m_file_cnt;
 
 	int video_stream_idx;
 	int m_nAudioStream[MAX_AUDIO_STREAM];
