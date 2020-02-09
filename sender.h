@@ -15,7 +15,7 @@ public:
 	~CSender(void);
 
 	bool send_bitstream(uint8_t *stream, int size, char isvisible);
-	bool send_audiostream(char *buff, int size);
+	bool send_audiostream(char *buff, int size, char state);
 
 	int ReadSocket(uint8_t *buffer, unsigned bufferSize);
 	bool Create(Json::Value info, Json::Value attr, int nChannel);

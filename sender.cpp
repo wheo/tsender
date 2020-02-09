@@ -229,19 +229,7 @@ void CSender::Run()
 		//cout << "[SENDER.ch" << m_nChannel << "] (" << nFrame << "), (" << tick_diff << "), (" << sended << "), (" << target_time << "), (" << want_send << ")" << endl;
 		//cout << "[SENDER.ch" << m_nChannel << "] tick_diff : " << tick_diff << ", speed : " << nSpeed << endl;
 #if 1
-		if (isPause != pauseOld)
-		{
-			//상태 변화가 일어났다
-			if (isPause == true)
-			{
-				//마지막 프레임 출력
-			}
-			else
-			{
-				//
-			}
-		}
-		pauseOld = isPause;
+
 #endif
 
 		if (type == "video")
@@ -252,12 +240,33 @@ void CSender::Run()
 			pkt.size = 0;
 			pkt.pts = 0;
 
+			char isvisible;
+
+			if (isPause != pauseOld)
+			{
+				//상태 변화가 일어났다
+				if (isPause == true)
+				{
+					//
+				}
+				else if (isPause == false)
+				{
+					//마지막 프레임 버림
+					if (m_queue->GetVideo(&pkt, &isvisible) > 0)
+					{
+						m_queue->RetVideo(&pkt);
+					}
+				}
+			}
+			pauseOld = isPause;
+
 			//cout << "[SENDER.ch" << m_nChannel << "] pkt.flags (" << pkt.flags << "), (" << counter << "), (" << pts_diff << "), (" << sended << "), (" << target_time << "), (" << want_send << ")" << endl;
 			while (m_bExit == false && m_queue)
 			{
 				int size = 0;
-				char isvisible;
+
 				size = m_queue->GetVideo(&pkt, &isvisible);
+				//cout << "[SENDER.ch" << m_nChannel << "] get size : " << size << endl;
 				if (size > 0)
 				{
 					m_current_pts = pkt.pts;
@@ -304,56 +313,39 @@ void CSender::Run()
 					}
 					break;
 				}
-				usleep(10);
+				//usleep(10);
 			}
 		}
 
 		else if (type == "audio")
 		{
 			//m_out_pts = ((m_nAudioCount * AV_TIME_BASE) * num / den);
+
 			if (m_queue)
 			{
-				isReverse = m_bIsRerverse;
-				if (isReverse != reverseOld)
+				char status;
+				ELEM *pe = (ELEM *)m_queue->GetAudio();
+				if (pe && pe->len > 0)
 				{
-					if (isReverse == true)
+					status = pe->state;
+					m_nAudioCount++;
+					m_current_pts = (m_nAudioCount * AV_TIME_BASE * num) / den;
+					if (m_nSpeed == 0 && isReverse == false)
 					{
-						m_nAudioCount--;
-					}
-					else if (isReverse == false)
-					{
-						//move audio count
-					}
-				}
-				reverseOld = isReverse;
-				if (isReverse == true)
-				{
-					m_nAudioCount--;
-				}
-				else
-				{
-					ELEM *pe = (ELEM *)m_queue->GetAudio();
-					if (pe && pe->len > 0)
-					{
-						m_nAudioCount++;
-						m_current_pts = (m_nAudioCount * AV_TIME_BASE * num) / den;
-						if (m_nSpeed == 0 && isReverse == false)
+						if (send_audiostream(pe->p, AUDIO_BUFF_SIZE, status))
 						{
-							if (send_audiostream(pe->p, AUDIO_BUFF_SIZE))
-							{
 #if 0
 								cout << "[SENDER.ch" << m_nChannel << "] send_audiotream sended(" << AUDIO_BUFF_SIZE << "), AudioCount : " << m_nAudioCount << endl;
 #endif
-							}
-							else
-							{
-								cout << "[SENDER.ch" << m_nChannel << "] send_audiotream failed" << endl;
-							}
 						}
-						if (m_queue)
+						else
 						{
-							m_queue->RetAudio(pe);
+							cout << "[SENDER.ch" << m_nChannel << "] send_audiotream failed" << endl;
 						}
+					}
+					if (m_queue)
+					{
+						m_queue->RetAudio(pe);
 					}
 				}
 			}
@@ -364,10 +356,24 @@ void CSender::Run()
 	}
 }
 
-bool CSender::send_audiostream(char *buff, int size)
+bool CSender::send_audiostream(char *buff, int size, char state)
 {
+	char reserve[4] = {
+		0,
+	};
+
+	reserve[0] = state; // 0 : 정상재생 1 : 구간점프
+
+	int header_size = sizeof(reserve);
+
+	char *p = buff;
+	uint8_t buffer[header_size + size];
+
+	memcpy(&buffer[0], &reserve, sizeof(reserve));
+	memcpy(&buffer[header_size], p, size);
+
 	int nSendto = 0;
-	nSendto = sendto(m_sock, buff, size, 0, (struct sockaddr *)&m_mcast_group, sizeof(m_mcast_group));
+	nSendto = sendto(m_sock, buffer, header_size + size, 0, (struct sockaddr *)&m_mcast_group, sizeof(m_mcast_group));
 	if (nSendto > 0)
 	{
 		return true;

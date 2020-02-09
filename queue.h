@@ -12,6 +12,7 @@ typedef struct tagELEM
 {
 	char *p;
 	int len;
+	char state;
 } ELEM;
 
 typedef struct tagVIDEOELEM
@@ -30,7 +31,7 @@ public:
 	void Clear();
 
 	int PutVideo(AVPacket *pkt, char isvisible);
-	int PutAudio(char *pData, int nSize);
+	int PutAudio(char *pData, int nSize, char statue);
 
 	int GetVideo(AVPacket *pkt, char *isvisible);
 	void *GetAudio();
@@ -52,6 +53,8 @@ public:
 
 private:
 	bool m_bExit;
+
+	char m_audio_status;
 
 	bool m_bEnable;
 	bool m_bAudioEnable;

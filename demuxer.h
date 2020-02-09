@@ -102,23 +102,25 @@ private:
 	AVFormatContext *fmt_ctx;
 	int m_nSeekFrame;
 
+	char m_audio_status;
+
 	int m_nMoveIdx;
 	bool m_bIsSync;
 	bool m_next_keyframe;
-	uint64_t m_sync_pts;
+	int64_t m_sync_pts;
 	bool m_b_sync_check;
 	//double m_fMoveLeftSec;
 	double m_fDuration;
 	double m_fFPS;
-	uint64_t m_current_pts;
+	int64_t m_current_pts;
 	bool m_bDisable;
 
-	uint64_t m_file_first_pts;
+	int64_t m_file_first_pts;
 	uint m_reverse_count;
 	uint m_sync_cnt;
-	uint64_t m_seek_pts;
-	uint64_t m_reverse_pts;
-	uint64_t m_first_reverse_pts;
+	int64_t m_seek_pts;
+	int64_t m_reverse_pts;
+	int64_t m_first_reverse_pts;
 
 	AVStream *m_pStream;
 	AVRational m_timeBase;

@@ -61,6 +61,8 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 	m_current_pts = 0;
 	m_bDisable = false;
 
+	m_audio_status = 0;
+
 	m_isFOF = false;
 
 	m_n_gop = m_info["gop"].asInt();
@@ -89,10 +91,12 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 	if (m_nChannel < 4)
 	{
 		nQueueSize = 2;
+		m_sync_pts = 30000;
 	}
 	else if (m_nChannel >= 4)
 	{
 		nQueueSize = 2;
+		m_sync_pts = 8192;
 	}
 
 	m_queue = new CQueue(nQueueSize);
@@ -455,7 +459,7 @@ int CDemuxer::Demux(Json::Value files)
 						{
 							//cout << "[DEMUXER.ch" << m_nChannel << "] sync_pts : " << m_sync_pts << ", cur_pts : " << m_current_pts << endl;
 							// 화면에 안그림
-							isvisible = 0;
+							//isvisible = 0;
 						}
 
 						av_packet_unref(&pkt);
@@ -582,14 +586,14 @@ int CDemuxer::Demux(Json::Value files)
 								//cout << "[DEMUXER.ch" << m_nChannel << "] put!!!!!!!, diff (" << pts_diff << "), (" << m_lldur << "), pts : (" << pkt.pts << "), old (" << old_pts << ")" << endl;
 								if (pkt_dup_count == 0)
 								{
-									usleep(10);
+									//usleep(10);
 									break;
 								}
 							}
 							else
 							{
 								//버퍼가 꽉 차서 버퍼에 pkt을 넣을 수 없을 때 10 usec 휴식
-								usleep(10);
+								//usleep(10);
 							}
 						}
 					}
@@ -602,7 +606,7 @@ int CDemuxer::Demux(Json::Value files)
 						//cout << "[DEMUXER.ch" << m_nChannel << "] File first pos and set index : " << i << endl;
 						break;
 					}
-					usleep(10);
+					//usleep(10);
 				}
 			}
 			else if (type == "audio")
@@ -629,6 +633,7 @@ int CDemuxer::Demux(Json::Value files)
 					m_seek_pts = (m_nAudioCount * AV_TIME_BASE * num) / den;
 					m_current_pts = m_seek_pts;
 					m_IsAudioRead = true;
+					m_audio_status = 1;
 					//m_start_pts = high_resolution_clock::now();
 				}
 
@@ -648,9 +653,10 @@ int CDemuxer::Demux(Json::Value files)
 
 				if (m_IsAudioRead == true)
 				{
-					if (m_queue->PutAudio(audio_buf, AUDIO_BUFF_SIZE) > 0)
+					if (m_queue->PutAudio(audio_buf, AUDIO_BUFF_SIZE, m_audio_status) > 0)
 					{
 						m_IsAudioRead = false;
+						m_audio_status = 0;
 					}
 				}
 

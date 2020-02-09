@@ -143,37 +143,49 @@ bool CCommMgr::RX()
 		if (reader.parse(strbuf, root, true))
 		{
 			//parse success
+			if (root["cmd"] == "play_open")
+			{
+				int firstsleep = m_attr["firstsleeptime"].asInt();
+				m_attr["target"] = root["info"]["target"].asString();
+				m_attr["bit_state"] = root["info"]["bit_state"];
+				cout << "[COMM] firstsleeptime : " << firstsleep << endl;
+
+				if (m_bIsRunning == true)
+				{
+					Delete();
+					cout << "[COMM] sender is deleted" << endl;
+					m_nChannel = 0;
+					m_bIsRunning = false;
+				}
+
+				m_bIsRunning = true;
+				m_nChannel = 0;
+				for (auto &value : m_attr["output_channels"])
+				{
+					m_CDemuxer[m_nChannel] = new CDemuxer();
+					m_CDemuxer[m_nChannel]->SetMutex(&m_mutex_comm);
+					m_CDemuxer[m_nChannel]->Create(m_attr["output_channels"][m_nChannel], m_attr, m_nChannel);
+					m_nChannel++;
+				}
+				for (int i = 0; i < m_nChannel; i++)
+				{
+					m_CDemuxer[i]->SetPause(true);
+				}
+				//usleep(firstsleep);
+				//Sync();
+				for (int i = 0; i < m_nChannel; i++)
+				{
+					m_CDemuxer[i]->SetSpeed(0);
+					//m_CDemuxer[i]->SetPause(false);
+				}
+				m_bIsPause = true;
+			}
 			if (root["cmd"] == "play_start")
 			{
-				//cout << root["info"]["target"].asString() << endl;
-
 				m_attr["target"] = root["info"]["target"].asString();
 				m_attr["bit_state"] = root["info"]["bit_state"];
 				m_nMoveSec = root["info"]["move_sec"].asInt();
-				if (!m_bIsRunning)
-				{
-					m_bIsRunning = true;
-					m_nChannel = 0;
-					for (auto &value : m_attr["output_channels"])
-					{
-						m_CDemuxer[m_nChannel] = new CDemuxer();
-						m_CDemuxer[m_nChannel]->SetMutex(&m_mutex_comm);
-						m_CDemuxer[m_nChannel]->Create(m_attr["output_channels"][m_nChannel], m_attr, m_nChannel);
-						m_nChannel++;
-					}
-					for (int i = 0; i < m_nChannel; i++)
-					{
-						m_CDemuxer[i]->SetPause(true);
-					}
-					Sync();
-					for (int i = 0; i < m_nChannel; i++)
-					{
-						m_CDemuxer[i]->SetSpeed(0);
-						m_CDemuxer[i]->SetPause(false);
-					}
-					m_bIsPause = false;
-				}
-				else
+				if (m_bIsRunning == true)
 				{
 					cout << "[COMM] is running" << endl;
 					for (int i = 0; i < m_nChannel; i++)
@@ -193,6 +205,10 @@ bool CCommMgr::RX()
 						}
 						m_bIsPause = false;
 					}
+				}
+				else
+				{
+					cout << "[COMM] (" << root["cmd"].asString() << ") player is not running" << endl;
 				}
 			}
 			else if (root["cmd"] == "play_reverse")
@@ -412,7 +428,7 @@ bool CCommMgr::TX(char *buff, int size)
 
 void CCommMgr::Sync()
 {
-	usleep(320000); // 1,000,000 = 1초
+	usleep(260000); // 1,000,000 = 1초
 	uint64_t max_pts = 0;
 	int max_index = 0;
 	int state = m_attr["bit_state"].asInt();
