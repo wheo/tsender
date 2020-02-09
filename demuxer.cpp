@@ -622,18 +622,21 @@ int CDemuxer::Demux(Json::Value files)
 
 				if (m_nSeekFrame > 0)
 				{
-					m_queue->Clear();
 					m_nAudioCount = m_nSeekFrame;
 					m_nSeekFrame = m_nSeekFrame - (last_frame * m_nMoveIdx);
 
 					cout << "[DEMUXER.ch" << m_nChannel << "] move audio frame (" << m_nSeekFrame << ")" << endl;
 					//MoveFrame(m_nMoveFrame);
-					ifs.seekg(m_nSeekFrame * AUDIO_BUFF_SIZE);
+					if (ifs.is_open())
+					{
+						ifs.seekg(m_nSeekFrame * AUDIO_BUFF_SIZE);
+					}
 					m_nSeekFrame = 0;
 					m_seek_pts = (m_nAudioCount * AV_TIME_BASE * num) / den;
 					m_current_pts = m_seek_pts;
 					m_IsAudioRead = true;
 					m_audio_status = 1;
+					m_queue->Clear();
 					//m_start_pts = high_resolution_clock::now();
 				}
 
@@ -641,7 +644,10 @@ int CDemuxer::Demux(Json::Value files)
 				{
 					if (m_IsAudioRead == false)
 					{
-						ifs.read(audio_buf, AUDIO_BUFF_SIZE);
+						if (ifs.is_open())
+						{
+							ifs.read(audio_buf, AUDIO_BUFF_SIZE);
+						}
 						m_nAudioCount++;
 						m_seek_pts = (m_nAudioCount * AV_TIME_BASE * num) / den;
 						m_IsAudioRead = true;
