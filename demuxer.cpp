@@ -404,7 +404,7 @@ int CDemuxer::Demux(Json::Value files)
 			}
 			else
 			{
-				cout << "[DEMUXER.ch" << m_nChannel << "] " << src_filename << " file open success" << endl;
+				//cout << "[DEMUXER.ch" << m_nChannel << "] " << src_filename << " file open success" << endl;
 			}
 		}
 
