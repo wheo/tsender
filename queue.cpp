@@ -84,7 +84,7 @@ void CQueue::Clear()
 	m_nPacket = 0;
 	m_nAudio = 0;
 
-	cout << "[QUEUE.ch" << m_nChannel << "] Queue Clear()" << endl;
+	//cout << "[QUEUE.ch" << m_nChannel << "] Queue Clear()" << endl;
 }
 
 void CQueue::Enable()
@@ -169,7 +169,7 @@ int CQueue::PutAudio(char *pData, int nSize, char status)
 		}
 		m_nAudio++;
 		m_audio_status = status;
-#if 1
+#if 0
 		if (m_nAudio > 0)
 		{
 			m_bEnable = true;

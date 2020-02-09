@@ -188,23 +188,32 @@ bool CCommMgr::RX()
 				if (m_bIsRunning == true)
 				{
 					cout << "[COMM] is running" << endl;
+					if (m_bIsPause == false)
+					{
+						m_CDemuxer[6]->SetMoveSec(m_nMoveSec);
+						m_CDemuxer[7]->SetMoveSec(m_nMoveSec);
+					}
 					for (int i = 0; i < m_nChannel; i++)
 					{
 						if (m_CDemuxer[i])
 						{
-							//멈춤을 푼다
-							m_CDemuxer[i]->SetPause(false);
+							//멈춤을 한다
+							m_CDemuxer[i]->SetPause(true);
 							//정배로 재생한다
 							m_CDemuxer[i]->SetReverse(false);
 							m_CDemuxer[i]->SetSpeed(0);
 						}
-						if (m_bIsPause == false)
-						{
-							m_CDemuxer[6]->SetMoveSec(m_nMoveSec);
-							m_CDemuxer[7]->SetMoveSec(m_nMoveSec);
-						}
-						m_bIsPause = false;
 					}
+					Sync();
+					usleep(1000000);
+
+					for (int i = 0; i < m_nChannel; i++)
+					{
+						//멈춤을 푼다
+						m_CDemuxer[i]->SetPause(false);
+					}
+
+					m_bIsPause = false;
 				}
 				else
 				{
@@ -300,7 +309,7 @@ bool CCommMgr::RX()
 							m_CDemuxer[i]->SetPause(true);
 						}
 						m_bIsPause = true;
-						Sync();
+						//Sync();
 					}
 				}
 				else
@@ -317,10 +326,15 @@ bool CCommMgr::RX()
 					cout << "[COMM] Move sec : " << m_nMoveSec << endl;
 					for (int i = 0; i < m_nChannel; i++)
 					{
-						//m_CDemuxer[i]->SetPause(false);
+						m_CDemuxer[i]->SetPause(true);
 						m_CDemuxer[i]->SetMoveSec(m_nMoveSec);
 					}
 					Sync();
+					usleep(1000000);
+					for (int i = 0; i < m_nChannel; i++)
+					{
+						m_CDemuxer[i]->SetPause(m_bIsPause);
+					}
 				}
 				else
 				{
@@ -428,6 +442,11 @@ bool CCommMgr::TX(char *buff, int size)
 
 void CCommMgr::Sync()
 {
+	for (int i = 0; i < 6; i++)
+	{
+		m_CDemuxer[i]->Sync(true);
+	}
+
 	usleep(260000); // 1,000,000 = 1초
 	uint64_t max_pts = 0;
 	int max_index = 0;

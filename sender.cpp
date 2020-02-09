@@ -290,8 +290,9 @@ void CSender::Run()
 					{
 						if (send_bitstream(pkt.data, pkt.size, isvisible))
 						{
+							//cout << "[SENDER.ch" << m_nChannel << "] send_bitstream (" << pkt.pts << "), (" << m_now << "), (" << nFrame << "), diff(" << pts_diff << ") sended time (" << sended << "), (" << pkt.flags << ") is_pframe_skip : " << std::boolalpha << m_is_pframe_skip << endl;
 #if 0
-							cout << "[SENDER.ch" << m_nChannel << "] send_bitstream (" << pkt.pts << "), (" << m_now << "), (" << nFrame << "), diff(" << pts_diff << ") sended time (" << sended << "), (" << pkt.flags << ") is_pframe_skip : " << std::boolalpha << m_is_pframe_skip << endl;
+							
 							if (pts_diff != pts_diff_old)
 							{
 								cout << "[SENDER.ch" << m_nChannel << "] !!!! frame (" << nFrame << "), (" << pts_diff << "), (" << pts_diff_old << ") pts (" << m_current_pts << "), (" << old_pts << ")" << endl;

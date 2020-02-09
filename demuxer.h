@@ -58,6 +58,7 @@ public:
 	int AudioSeek(uint64_t audioCount);
 	void Disable();
 	void Enable();
+	void Sync(bool state);
 
 protected:
 	int m_nChannel;		// 현재 채널 넘버
@@ -115,6 +116,7 @@ private:
 	double m_fFPS;
 	int64_t m_current_pts;
 	bool m_bDisable;
+	bool m_isSyncing;
 
 	int64_t m_file_first_pts;
 	uint m_reverse_count;
