@@ -309,7 +309,7 @@ bool CCommMgr::RX()
 							m_CDemuxer[i]->SetPause(true);
 						}
 						m_bIsPause = true;
-						//Sync();
+						Sync();
 					}
 				}
 				else

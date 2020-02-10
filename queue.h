@@ -1,7 +1,7 @@
 #ifndef _QUEUE_H_
 #define _QUEUE_H_
 
-#define MAX_NUM_QUEUE 2
+#define MAX_NUM_QUEUE 4
 #define MAX_NUM_AUDIO_QUEUE 2
 #define QUE_INFINITE -1
 #define MIN_BUF_FRAME 9

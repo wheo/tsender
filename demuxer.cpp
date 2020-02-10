@@ -448,7 +448,7 @@ int CDemuxer::Demux(Json::Value files)
 					{
 						i = files.size() - 2;
 					}
-					//cout << "[DEMUXER.ch" << m_nChannel << "] before break (" << i << "/" << files.size() << ")" << endl;
+					cout << "[DEMUXER.ch" << m_nChannel << "] (" << i << "/" << files.size() << ")" << endl;
 					break;
 				}
 
@@ -494,7 +494,7 @@ int CDemuxer::Demux(Json::Value files)
 						{
 							if (i + 1 < files.size())
 							{
-								//cout << "[DEMUXER.ch" << m_nChannel << "] meet EOF(" << fmt_ctx->filename << "), (" << i + 1 << "/" << files.size() << ")" << endl;
+								cout << "[DEMUXER.ch" << m_nChannel << "] meet EOF(" << fmt_ctx->filename << "), (" << i + 1 << "/" << files.size() << ")" << endl;
 								avformat_close_input(&fmt_ctx);
 								fmt_ctx = NULL;
 								//cout << "[DEMUXER.ch" << m_nChannel << "] meet index(" << i + 1 << "/" << files.size() << ")" << endl;
@@ -654,6 +654,7 @@ int CDemuxer::Demux(Json::Value files)
 				{
 					m_isEOF = false;
 					m_IsMove = false;
+					cout << "[DEMUXER:AUDIO.ch" << m_nChannel << "] (" << files.size() << "), (" << i << "), (" << m_nMoveIdx << "), (" << m_nSeekFrame << ")" << endl;
 					if (m_nMoveIdx < files.size() - 2)
 					{
 						i = m_nMoveIdx - 1;
@@ -665,7 +666,6 @@ int CDemuxer::Demux(Json::Value files)
 						m_isEOF = true;
 						continue;
 					}
-					//cout << "[DEMUXER:AUDIO.ch" << m_nChannel << "] before break (" << i << "/" << files.size() << ")" << endl;
 				}
 				if (m_isEOF == true)
 				{
@@ -675,12 +675,13 @@ int CDemuxer::Demux(Json::Value files)
 				if (m_nSeekFrame > 0)
 				{
 					m_nAudioCount = m_nSeekFrame;
-					m_nSeekFrame = m_nSeekFrame - (last_frame * m_nMoveIdx);
+					//m_nSeekFrame = m_nSeekFrame - (last_frame * m_nMoveIdx);
 					//MoveFrame(m_nMoveFrame);
+
 					if (ifs.is_open())
 					{
-						ifs.seekg(m_nSeekFrame * AUDIO_BUFF_SIZE);
-						cout << "[DEMUXER.ch" << m_nChannel << "] move audio frame (" << m_nSeekFrame << ")" << endl;
+						ifs.seekg(m_nSeekRestFrame * AUDIO_BUFF_SIZE);
+						cout << "[DEMUXER.ch" << m_nChannel << "] move audio frame (" << m_nSeekRestFrame << ")" << endl;
 					}
 
 					m_nSeekFrame = 0;
@@ -705,7 +706,7 @@ int CDemuxer::Demux(Json::Value files)
 						m_nAudioCount++;
 						m_seek_pts = (m_nAudioCount * AV_TIME_BASE * num) / den;
 						m_IsAudioRead = true;
-						//cout << "[DEMUXER.ch" << m_nChannel << "] read audio from file : " << m_nAudioCount << endl;
+						cout << "[DEMUXER.ch" << m_nChannel << "] read audio from file : " << m_nAudioCount << endl;
 					}
 				}
 
@@ -725,7 +726,7 @@ int CDemuxer::Demux(Json::Value files)
 					ifs.close();
 					if (i < files.size() - 2)
 					{
-						//cout << "[DEMUXER.ch" << m_nChannel << "] audio meet eof (" << i << "/" << files.size() << ")" << endl;
+						cout << "[DEMUXER.ch" << m_nChannel << "] audio (" << src_filename << ") meet eof (" << i + 1 << "/" << files.size() << ")" << endl;
 						break;
 					}
 					else
@@ -759,10 +760,12 @@ bool CDemuxer::SetMoveSec(int nSec)
 	uint64_t num = m_info["num"].asUInt64();
 	uint64_t den = m_info["den"].asUInt64();
 	uint64_t nFrame = (nSec * den) / num;
-	m_nMoveIdx = FindFileIndexFromFrame(nFrame);
-	//cout << "[DEMUXER.ch" << m_nChannel << "] input frame : " << nFrame << ", move index : " << m_nMoveIdx << endl;
+	int restFrame;
+	m_nMoveIdx = FindFileIndexFromFrame(nFrame, &restFrame);
 
 	m_nSeekFrame = nFrame;
+	m_nSeekRestFrame = restFrame;
+	cout << "[DEMUXER.ch" << m_nChannel << "] input frame : " << nFrame << ", rest frame : " << m_nSeekRestFrame << ", move index : " << m_nMoveIdx << endl;
 	m_IsMove = true;
 }
 
@@ -771,14 +774,17 @@ bool CDemuxer::SetMoveFrame(uint64_t nFrame)
 	double ret;
 	uint64_t num = m_info["num"].asUInt64();
 	uint64_t den = m_info["den"].asUInt64();
+	int restFrame;
 	//uint64_t nFrame = (nSec * den) / num;
-	m_nMoveIdx = FindFileIndexFromFrame(nFrame);
-	//cout << "[DEMUXER.ch" << m_nChannel << "] input frame : " << nFrame << ", move index : " << m_nMoveIdx << endl;
+	m_nMoveIdx = FindFileIndexFromFrame(nFrame, &restFrame);
 
 	m_nSeekFrame = nFrame;
+	m_nSeekRestFrame = restFrame;
+	cout << "[DEMUXER.ch" << m_nChannel << "] input frame : " << nFrame << ", rest frame : " << m_nSeekRestFrame << ", move index : " << m_nMoveIdx << endl;
 	m_IsMove = true;
 }
 
+#if 0
 bool CDemuxer::SetMoveAudioCount(uint64_t audioCount)
 {
 	double ret;
@@ -790,6 +796,7 @@ bool CDemuxer::SetMoveAudioCount(uint64_t audioCount)
 	m_nSeekFrame = audioCount;
 	m_IsMove = true;
 }
+#endif
 
 bool CDemuxer::SeekFrame(int nFrame)
 {
@@ -870,7 +877,7 @@ bool CDemuxer::Reverse()
 	return true;
 }
 
-int CDemuxer::FindFileIndexFromFrame(uint64_t nFrame)
+int CDemuxer::FindFileIndexFromFrame(int nFrame, int *outnFrame)
 {
 	int ret_idx = 0;
 	for (int i = 0; i < m_files.size(); i++)
@@ -886,6 +893,7 @@ int CDemuxer::FindFileIndexFromFrame(uint64_t nFrame)
 			ret_idx++;
 		}
 	}
+	*outnFrame = nFrame;
 	return ret_idx;
 }
 #if 0

@@ -58,6 +58,7 @@ void CQueue::Clear()
 	//m_bExit = true;
 	for (int i = 0; i < m_nMaxQueue; i++)
 	{
+		cout << "[QUEUE.ch" << m_nChannel << "] " << i << ", pts : " << m_pkt[i].pts << endl;
 		av_packet_unref(&m_pkt[i]);
 	}
 
@@ -84,7 +85,7 @@ void CQueue::Clear()
 	m_nPacket = 0;
 	m_nAudio = 0;
 
-	//cout << "[QUEUE.ch" << m_nChannel << "] Queue Clear()" << endl;
+	cout << "[QUEUE.ch" << m_nChannel << "] Queue Clear()" << endl;
 }
 
 void CQueue::Enable()
@@ -202,13 +203,12 @@ int CQueue::GetVideo(AVPacket *pkt, char *isvisible)
 	if (m_ve[m_nReadPos].pkt->size > 0)
 	{
 		av_init_packet(pkt);
-		//av_packet_ref(pkt, &m_pkt[m_nReadPos]);
-		av_packet_ref(pkt, m_ve[m_nReadPos].pkt);
-		//av_packet_unref(&m_pkt[m_nReadPos]);
+		av_packet_ref(pkt, &m_pkt[m_nReadPos]);
+		av_packet_unref(&m_pkt[m_nReadPos]);
 		m_current_video_pts = pkt->pts;
 		*isvisible = m_ve[m_nReadPos].isvisible;
 #if 0
-		cout << "[QUEUE.ch" << m_nChannel << "] get pos (" << m_nReadPos << "), size (" << m_ve[m_nReadPos].pkt->size << "), pts (" << m_ve[m_nReadPos].pkt->pts << ") m_nPacket : " << m_nPacket << endl;
+		cout << "[QUEUE.ch" << m_nChannel << "] get pos (" << m_nReadPos << "), size (" << pkt->size << "), pts (" << pkt->pts << ") m_nPacket : " << m_nPacket << ", visible : " << (int)*isvisible << endl;
 #endif
 		pthread_mutex_unlock(&m_mutex);
 
@@ -282,7 +282,7 @@ void CQueue::RetVideo(AVPacket *pkt)
 	pthread_mutex_lock(&m_mutex);
 
 	av_packet_unref(pkt);
-	av_packet_unref(&m_pkt[m_nReadPos]);
+	//av_packet_unref(&m_pkt[m_nReadPos]);
 
 	m_nReadPos++;
 	if (m_nReadPos >= m_nMaxQueue)

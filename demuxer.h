@@ -54,7 +54,7 @@ public:
 	bool SetMoveAudioCount(uint64_t audioCount);
 	bool Reverse();
 	bool SeekFrame(int nFrame);
-	int FindFileIndexFromFrame(uint64_t nFrame);
+	int FindFileIndexFromFrame(int nFrame, int *outnFrame);
 	int AudioSeek(uint64_t audioCount);
 	void Disable();
 	void Enable();
@@ -103,6 +103,7 @@ private:
 	AVPacket m_pkt;
 	AVFormatContext *fmt_ctx;
 	int m_nSeekFrame;
+	int m_nSeekRestFrame;
 
 	char m_audio_status;
 
