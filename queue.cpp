@@ -58,7 +58,7 @@ void CQueue::Clear()
 	//m_bExit = true;
 	for (int i = 0; i < m_nMaxQueue; i++)
 	{
-		cout << "[QUEUE.ch" << m_nChannel << "] " << i << ", pts : " << m_pkt[i].pts << endl;
+		//cout << "[QUEUE.ch" << m_nChannel << "] " << i << ", pts : " << m_pkt[i].pts << endl;
 		av_packet_unref(&m_pkt[i]);
 	}
 

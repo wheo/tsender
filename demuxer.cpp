@@ -290,9 +290,8 @@ int CDemuxer::Demux(Json::Value files)
 	uint64_t num = m_info["num"].asUInt64();
 	uint64_t den = m_info["den"].asUInt64();
 
-	bool isPause = false;
+	;
 	bool pauseOld = false;
-	bool isReverse = false;
 	bool reverseOld = false;
 	bool MoveFirstPacket = false;
 	char isvisible = 1;
@@ -324,7 +323,7 @@ int CDemuxer::Demux(Json::Value files)
 		{
 			if (avformat_open_input(&fmt_ctx, src_filename.c_str(), NULL, NULL) < 0)
 			{
-				cout << "[DEMUXER.ch" << m_nChannel << "] Could not open source file : " << src_filename << endl;
+				cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] Could not open source file : " << src_filename << endl;
 				return false;
 			}
 			else
@@ -340,7 +339,7 @@ int CDemuxer::Demux(Json::Value files)
 			ret = avformat_find_stream_info(fmt_ctx, NULL);
 			if (ret < 0)
 			{
-				cout << "[DEMUXER.ch" << m_nChannel << "] failed to find proper stream in FILE : " << src_filename << endl;
+				cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] failed to find proper stream in FILE : " << src_filename << endl;
 			}
 
 			if (open_codec_context(&video_stream_idx, &video_dec_ctx, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0)
@@ -352,7 +351,7 @@ int CDemuxer::Demux(Json::Value files)
 
 				if (!video_stream)
 				{
-					fprintf(stderr, "[DEMUXER] Could not find audio or video stream in the input, aborting\n");
+					fprintf(stderr, "[DEMUXER.VIDEO] Could not find audio or video stream in the input, aborting\n");
 					ret = 1;
 				}
 				else
@@ -370,23 +369,23 @@ int CDemuxer::Demux(Json::Value files)
 				m_bsf = av_bsf_get_by_name("hevc_metadata");
 			}
 
-			if (i == 0) // 첫번째 파일일 경우에만 필터 초기화를 할 것!!!
+			if (i == 0) // 그룹폴더내의 첫번째 파일일 경우에만 필터 초기화를 할 것!!!
 			{
 				if (av_bsf_alloc(m_bsf, &m_bsfc) < 0)
 				{
-					_d("[DEMUXER] Failed to alloc bsfc\n");
+					_d("[[DEMUXER.VIDEO] Failed to alloc bsfc\n");
 					return false;
 				}
 				if (avcodec_parameters_copy(m_bsfc->par_in, fmt_ctx->streams[0]->codecpar) < 0)
 				{
-					_d("[DEMUXER] Failed to copy codec param.\n");
+					_d("[[DEMUXER.VIDEO] Failed to copy codec param.\n");
 					return false;
 				}
 				m_bsfc->time_base_in = fmt_ctx->streams[0]->time_base;
 
 				if (av_bsf_init(m_bsfc) < 0)
 				{
-					_d("[DEMUXER] Failed to init bsfc\n");
+					_d("[[DEMUXER.VIDEO] Failed to init bsfc\n");
 					return false;
 				}
 			}
@@ -399,7 +398,7 @@ int CDemuxer::Demux(Json::Value files)
 			ifs.open(src_filename, ios::in);
 			if (!ifs.is_open())
 			{
-				cout << "[DEMUXER.ch" << m_nChannel << "] " << src_filename << " file open failed" << endl;
+				cout << "[[DEMUXER.AUDIO.ch" << m_nChannel << "] " << src_filename << " file open failed" << endl;
 				return false;
 			}
 			else
@@ -418,11 +417,13 @@ int CDemuxer::Demux(Json::Value files)
 
 		while (!m_bExit)
 		{
-			isPause = m_IsPause;
-			isReverse = m_bIsRerverse;
+			bool isPause = m_IsPause;
+			bool isReverse = m_bIsRerverse;
+			bool isMove = m_IsMove;
+			int nSeekFrame = m_nSeekFrame;
 			if (type == "video")
 			{
-				if (m_IsMove == true)
+				if (isMove == true)
 				{
 					m_isEOF = false;
 				}
@@ -432,7 +433,7 @@ int CDemuxer::Demux(Json::Value files)
 				}
 
 				int pkt_dup_count = 1;
-				if (m_IsMove == true)
+				if (isMove == true)
 				{
 					//m_isEOF = false;
 					m_IsMove = false;
@@ -448,13 +449,13 @@ int CDemuxer::Demux(Json::Value files)
 					{
 						i = files.size() - 2;
 					}
-					cout << "[DEMUXER.ch" << m_nChannel << "] (" << i << "/" << files.size() << ")" << endl;
+					cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] (" << i << "/" << files.size() << ")" << endl;
 					break;
 				}
 
-				if (m_nSeekFrame > 0)
+				if (nSeekFrame > 0)
 				{
-					SeekFrame(m_nSeekFrame);
+					SeekFrame(nSeekFrame);
 					m_nSeekFrame = 0;
 					MoveFirstPacket = true;
 				}
@@ -470,8 +471,6 @@ int CDemuxer::Demux(Json::Value files)
 						isvisible = 1;
 					}
 
-					//cout << "[DEMUXER.ch" << m_nChannel << "] m_isSyncing : " << m_isSyncing << endl;
-
 					if (isPause == false || (m_sync_pts > 0 && m_sync_pts > m_current_pts || MoveFirstPacket == true))
 					{
 						if (m_sync_pts > 0 && m_sync_pts < m_current_pts)
@@ -479,7 +478,7 @@ int CDemuxer::Demux(Json::Value files)
 							MoveFirstPacket = false;
 							m_sync_pts = 0;
 							m_isSyncing = false;
-							cout << "[DEMUXER.ch" << m_nChannel << "] sync_pts : " << m_sync_pts << ", cur_pts : " << m_current_pts << endl;
+							cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] sync_pts : " << m_sync_pts << ", cur_pts : " << m_current_pts << endl;
 						}
 
 						av_packet_unref(&pkt);
@@ -494,7 +493,7 @@ int CDemuxer::Demux(Json::Value files)
 						{
 							if (i + 1 < files.size())
 							{
-								cout << "[DEMUXER.ch" << m_nChannel << "] meet EOF(" << fmt_ctx->filename << "), (" << i + 1 << "/" << files.size() << ")" << endl;
+								cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] meet EOF(" << fmt_ctx->filename << "), (" << i + 1 << "/" << files.size() << ")" << endl;
 								avformat_close_input(&fmt_ctx);
 								fmt_ctx = NULL;
 								//cout << "[DEMUXER.ch" << m_nChannel << "] meet index(" << i + 1 << "/" << files.size() << ")" << endl;
@@ -503,7 +502,7 @@ int CDemuxer::Demux(Json::Value files)
 							else
 							{
 								m_isEOF = true;
-								//cout << "[DEMUXER.ch" << m_nChannel << "] meet END OF FILELIST (" << i + 1 << "/" << files.size() << "), " << m_isEOF << ", " << m_isFOF << endl;
+								cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] meet END OF FILELIST (" << i + 1 << "/" << files.size() << "), " << m_isEOF << ", " << m_isFOF << endl;
 								continue;
 							}
 						}
@@ -533,7 +532,7 @@ int CDemuxer::Demux(Json::Value files)
 						if ((ret = av_bsf_send_packet(m_bsfc, &pkt)) < 0)
 						{
 							av_log(fmt_ctx, AV_LOG_ERROR, "Failed to send packet to filter %s for stream %d\n", m_bsfc->filter->name, pkt.stream_index);
-							cout << "[DEMUXER.ch" << m_nChannel << "] current pts : " << pkt.pts << endl;
+							cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] current pts : " << pkt.pts << endl;
 						}
 						// TODO: when any automatically-added bitstream filter is generating multiple
 						// output packets for a single input one, we'll need to call this in a loop
@@ -543,7 +542,7 @@ int CDemuxer::Demux(Json::Value files)
 							if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
 							{
 								av_log(fmt_ctx, AV_LOG_ERROR, "Failed to receive packet from filter %s for stream %d\n", m_bsfc->filter->name, pkt.stream_index);
-								cout << "[DEMUXER.ch" << m_nChannel << "] current pts : " << pkt.pts << endl;
+								cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] current pts : " << pkt.pts << endl;
 							}
 							if (fmt_ctx->error_recognition & AV_EF_EXPLODE)
 							{
@@ -590,7 +589,7 @@ int CDemuxer::Demux(Json::Value files)
 						{
 							//여기서 같은 pkt 버퍼 한개 더 보충함
 							pkt_dup_count++;
-							cout << "[DEMUXER.ch" << m_nChannel << "]  diff (" << pts_diff << "), (" << m_lldur << "), pts : (" << pkt.pts << "), old (" << old_pts << ")" << endl;
+							cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "]  diff (" << pts_diff << "), (" << m_lldur << "), pts : (" << pkt.pts << "), old (" << old_pts << ")" << endl;
 						}
 					}
 
@@ -614,7 +613,7 @@ int CDemuxer::Demux(Json::Value files)
 							{
 								//비디오 패킷 put 완료 후 시점
 								pkt_dup_count--;
-								//cout << "[DEMUXER.ch" << m_nChannel << "] put!!!!!!!, diff (" << pts_diff << "), (" << m_lldur << "), pts : (" << pkt.pts << "), old (" << old_pts << ")" << endl;
+								//cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] put!!!!!!!, diff (" << pts_diff << "), (" << m_lldur << "), pts : (" << pkt.pts << "), old (" << old_pts << ")" << endl;
 								if (pkt_dup_count == 0)
 								{
 									//usleep(10);
@@ -633,7 +632,7 @@ int CDemuxer::Demux(Json::Value files)
 					if (m_isFOF == true && i > 0)
 					{
 						i = i - 2; // 직전 인덱스로 이동
-						//cout << "[DEMUXER.ch" << m_nChannel << "] File first pos and set index : " << i << endl;
+						//cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] File first pos and set index : " << i << endl;
 						break;
 					}
 					//usleep(10);
@@ -650,38 +649,41 @@ int CDemuxer::Demux(Json::Value files)
 					break;
 				}
 #endif
-				if (m_IsMove == true)
+				if (isMove == true)
 				{
 					m_isEOF = false;
-					m_IsMove = false;
-					cout << "[DEMUXER:AUDIO.ch" << m_nChannel << "] (" << files.size() << "), (" << i << "), (" << m_nMoveIdx << "), (" << m_nSeekFrame << ")" << endl;
-					if (m_nMoveIdx < files.size() - 2)
+					cout << "[DEMUXER:AUDIO.ch" << m_nChannel << "] move : true (" << m_nMoveIdx << ")/(" << files.size() << "), (" << nSeekFrame << ")" << endl;
+					if (m_nMoveIdx < files.size() - 1)
 					{
 						i = m_nMoveIdx - 1;
+						m_IsMove = false;
 						break;
 					}
 					else
 					{
 						i = files.size() - 2;
 						m_isEOF = true;
+						m_IsMove = false;
 						continue;
 					}
 				}
 				if (m_isEOF == true)
 				{
+					//cout << "[DEMUXER:AUDIO.ch" << m_nChannel << "] move eof , seekframe (" << m_nSeekFrame << ")" << endl;
 					continue;
 				}
 
-				if (m_nSeekFrame > 0)
+				if (nSeekFrame > 0)
 				{
-					m_nAudioCount = m_nSeekFrame;
+					m_nAudioCount = nSeekFrame;
 					//m_nSeekFrame = m_nSeekFrame - (last_frame * m_nMoveIdx);
 					//MoveFrame(m_nMoveFrame);
 
 					if (ifs.is_open())
 					{
-						ifs.seekg(m_nSeekRestFrame * AUDIO_BUFF_SIZE);
-						cout << "[DEMUXER.ch" << m_nChannel << "] move audio frame (" << m_nSeekRestFrame << ")" << endl;
+						int target = m_nSeekRestFrame * AUDIO_BUFF_SIZE;
+						ifs.seekg(target);
+						cout << "[DEMUXER:AUDIO.ch" << m_nChannel << "] move audio frame (" << m_nMoveIdx << "), (" << nSeekFrame << "), (" << m_nSeekRestFrame << ")" << endl;
 					}
 
 					m_nSeekFrame = 0;
@@ -706,7 +708,7 @@ int CDemuxer::Demux(Json::Value files)
 						m_nAudioCount++;
 						m_seek_pts = (m_nAudioCount * AV_TIME_BASE * num) / den;
 						m_IsAudioRead = true;
-						cout << "[DEMUXER.ch" << m_nChannel << "] read audio from file : " << m_nAudioCount << endl;
+						//cout << "[DEMUXER.AUDIO.ch" << m_nChannel << "] read audio from file : " << m_nAudioCount << endl;
 					}
 				}
 
@@ -724,14 +726,16 @@ int CDemuxer::Demux(Json::Value files)
 				if (ifs.eof())
 				{
 					ifs.close();
-					if (i < files.size() - 2)
+					if (i < files.size() - 1)
 					{
-						cout << "[DEMUXER.ch" << m_nChannel << "] audio (" << src_filename << ") meet eof (" << i + 1 << "/" << files.size() << ")" << endl;
+						cout << "[DEMUXER.AUDIO.ch" << m_nChannel << "] audio (" << src_filename << ") meet EOF (" << i + 1 << "/" << files.size() << ")" << endl;
 						break;
 					}
 					else
 					{
 						m_isEOF = true;
+						cout << "[DEMUXER.AUDIO.ch" << m_nChannel << "] (" << src_filename << ") meet END OF FILELIST (" << i + 1 << "/" << files.size() << "), " << m_isEOF << ", " << m_isFOF << endl;
+						continue;
 					}
 				}
 			}
@@ -763,12 +767,16 @@ bool CDemuxer::SetMoveSec(int nSec)
 	int restFrame;
 	m_nMoveIdx = FindFileIndexFromFrame(nFrame, &restFrame);
 
+	m_IsMove = true;
 	m_nSeekFrame = nFrame;
 	m_nSeekRestFrame = restFrame;
-	cout << "[DEMUXER.ch" << m_nChannel << "] input frame : " << nFrame << ", rest frame : " << m_nSeekRestFrame << ", move index : " << m_nMoveIdx << endl;
-	m_IsMove = true;
+	if (m_nMoveIdx > 0)
+	{
+		cout << "[DEMUXER.ch" << m_nChannel << "] input frame : " << nFrame << ", seek frame : " << m_nSeekFrame << ", rest frame : " << m_nSeekRestFrame << ", move index : " << m_nMoveIdx << endl;
+	}
 }
 
+#if 0
 bool CDemuxer::SetMoveFrame(uint64_t nFrame)
 {
 	double ret;
@@ -783,6 +791,7 @@ bool CDemuxer::SetMoveFrame(uint64_t nFrame)
 	cout << "[DEMUXER.ch" << m_nChannel << "] input frame : " << nFrame << ", rest frame : " << m_nSeekRestFrame << ", move index : " << m_nMoveIdx << endl;
 	m_IsMove = true;
 }
+#endif
 
 #if 0
 bool CDemuxer::SetMoveAudioCount(uint64_t audioCount)
