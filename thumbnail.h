@@ -6,8 +6,6 @@
 #include "sender.h"
 #include "queue.h"
 
-#define AUDIO_BUFF_SIZE 24
-
 class CThumbnail : public PThread
 {
 public:

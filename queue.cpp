@@ -111,7 +111,7 @@ int CQueue::PutVideo(AVPacket *pkt, char isvisible)
 	if (m_nMaxQueue <= m_nPacket)
 	{
 		//cout << "[QUEUE.ch" << m_nChannel << "] wait video put : " << m_nWritePos << endl;
-		//this_thread::sleep_for(microseconds(1000));
+		this_thread::sleep_for(microseconds(1000));
 		return 0;
 	}
 
@@ -199,8 +199,8 @@ int CQueue::GetVideo(AVPacket *pkt, char *isvisible)
 
 	pthread_mutex_lock(&m_mutex);
 
-	//if (m_pkt[m_nReadPos].size > 0)
-	if (m_ve[m_nReadPos].pkt->size > 0)
+	if (m_pkt[m_nReadPos].size > 0)
+	//if (m_ve[m_nReadPos].pkt->size > 0)
 	{
 		av_init_packet(pkt);
 		av_packet_ref(pkt, &m_pkt[m_nReadPos]);

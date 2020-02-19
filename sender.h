@@ -6,8 +6,6 @@
 #include "queue.h"
 //#include "thumbnail.h"
 
-#define AUDIO_BUFF_SIZE 24
-
 class CSender : public PThread
 {
 public:
@@ -56,6 +54,7 @@ protected:
 	bool m_bIsTimerReset;
 	int64_t m_currentDuration;
 	int64_t nFrame;
+	int64_t m_offset;
 	AVStream *pStream;
 	AVRational m_timeBase;
 	//int64_t m_start_pts;

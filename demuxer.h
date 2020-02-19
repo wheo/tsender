@@ -7,8 +7,6 @@
 #include "thumbnail.h"
 #include "sender.h"
 
-#define AUDIO_BUFF_SIZE 24
-
 class CDemuxer : public PThread
 {
 public:
@@ -54,7 +52,9 @@ public:
 	bool SetMoveAudioCount(uint64_t audioCount);
 	bool Reverse();
 	bool SeekFrame(int nFrame);
+	bool SeekPTS(int64_t pts);
 	int FindFileIndexFromFrame(int nFrame, int *outnFrame);
+	int FindFileIndexFromPTS(int64_t pts);
 	int AudioSeek(uint64_t audioCount);
 	void Disable();
 	void Enable();
@@ -104,6 +104,7 @@ private:
 	AVFormatContext *fmt_ctx;
 	int m_nSeekFrame;
 	int m_nSeekRestFrame;
+	uint64_t m_seek_pts_new;
 
 	char m_audio_status;
 

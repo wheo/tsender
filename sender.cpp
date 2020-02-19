@@ -14,6 +14,7 @@ CSender::CSender(void)
 	m_queue = NULL;
 	m_bIsRerverse = false;
 	m_enable = true;
+	m_offset = 0;
 }
 
 CSender::~CSender(void)
@@ -148,12 +149,12 @@ void CSender::SetAVFormatContext(AVFormatContext **fmt_ctx)
 
 void CSender::Run()
 {
-	uint64_t tick_diff = 0;
-	uint64_t target_time = 0;
+	int64_t tick_diff = 0;
+	int64_t target_time = 0;
+	int64_t out_diff = 0;
 	int sended = 0;
 	int want_send = 0;
 
-	//Play();
 	int keyframe_speed = m_attr["keyframe_speed"].asInt();
 	uint64_t num = m_info["num"].asUInt64();
 	uint64_t den = m_info["den"].asUInt64();
@@ -172,6 +173,7 @@ void CSender::Run()
 	uint64_t old_pts = 0;
 	int64_t pts_diff = 0;
 	int64_t pts_diff_old = 0;
+	target_time = 0;
 
 	m_now = 0;
 
@@ -184,6 +186,7 @@ void CSender::Run()
 	while (!m_bExit)
 	{
 		isPause = m_IsPause;
+#if 1
 		if (m_nSpeed == 0)
 		{
 			nSpeed = 1;
@@ -192,7 +195,9 @@ void CSender::Run()
 		{
 			nSpeed = m_nSpeed;
 		}
+#endif
 
+#if 0
 		if (m_bIsRerverse == true)
 		{
 			if (m_nChannel < 4)
@@ -213,24 +218,23 @@ void CSender::Run()
 		{
 			target_time = delay;
 		}
-
+#endif
 		m_end = high_resolution_clock::now();
 		tick_diff = duration_cast<microseconds>(m_end - m_begin).count();
+
+		//cout << "[SENDER.ch" << m_nChannel << "] (" << tick_diff << ")/(" << target_time << ")" << endl;
+#if 1
 		if (tick_diff < target_time)
 		{
+			usleep(1);
 			continue;
 		}
+#endif
 		m_begin = m_end;
-
-		sended += tick_diff;
-		want_send += target_time;
 		counter++;
 		nFrame++;
-		//cout << "[SENDER.ch" << m_nChannel << "] (" << nFrame << "), (" << tick_diff << "), (" << sended << "), (" << target_time << "), (" << want_send << ")" << endl;
-		//cout << "[SENDER.ch" << m_nChannel << "] tick_diff : " << tick_diff << ", speed : " << nSpeed << endl;
-#if 1
 
-#endif
+		out_diff = target_time - tick_diff;
 
 		if (type == "video")
 		{
@@ -241,7 +245,7 @@ void CSender::Run()
 			pkt.pts = 0;
 
 			char isvisible;
-
+#if 0
 			if (isPause != pauseOld)
 			{
 				//상태 변화가 일어났다
@@ -259,6 +263,7 @@ void CSender::Run()
 				}
 			}
 			pauseOld = isPause;
+#endif
 
 			//cout << "[SENDER.ch" << m_nChannel << "] pkt.flags (" << pkt.flags << "), (" << counter << "), (" << pts_diff << "), (" << sended << "), (" << target_time << "), (" << want_send << ")" << endl;
 			while (m_bExit == false && m_queue)
@@ -270,7 +275,9 @@ void CSender::Run()
 				if (size > 0)
 				{
 					m_current_pts = pkt.pts;
+					//target_time = pkt.pts;
 					pts_diff = llabs(m_current_pts - old_pts);
+					target_time = pts_diff - m_offset;
 
 					if (m_nSpeed == 0)
 					{
@@ -290,9 +297,9 @@ void CSender::Run()
 					{
 						if (send_bitstream(pkt.data, pkt.size, isvisible))
 						{
-							#if 0
-							cout << "[SENDER.ch" << m_nChannel << "] send_bitstream (" << pkt.pts << "), (" << m_now << "), (" << nFrame << "), diff(" << pts_diff << ") sended time (" << sended << "), (" << pkt.flags << ") is_pframe_skip : " << std::boolalpha << m_is_pframe_skip << endl;
-							#endif
+#if 1
+							cout << "[SENDER.ch" << m_nChannel << "] send_bitstream (" << pkt.pts << "), (" << m_now << "), (" << nFrame << "), tick : " << tick_diff << ", pts_diff(" << pts_diff << "), out_diff : " << out_diff << " sended, (" << pkt.flags << ") is_pframe_skip : " << std::boolalpha << m_is_pframe_skip << endl;
+#endif
 #if 0							
 							if (pts_diff != pts_diff_old)
 							{
@@ -315,7 +322,7 @@ void CSender::Run()
 					}
 					break;
 				}
-				//usleep(10);
+				usleep(10);
 			}
 		}
 
@@ -329,15 +336,16 @@ void CSender::Run()
 				ELEM *pe = (ELEM *)m_queue->GetAudio();
 				if (pe && pe->len > 0)
 				{
+					memcpy(&target_time, pe->p, 8);
 					status = pe->state;
 					m_nAudioCount++;
 					m_current_pts = (m_nAudioCount * AV_TIME_BASE * num) / den;
 					if (m_nSpeed == 0 && isReverse == false)
 					{
-						if (send_audiostream(pe->p, AUDIO_BUFF_SIZE, status))
+						if (send_audiostream(pe->p + 8, AUDIO_BUFF_SIZE - 8, status))
 						{
 #if 0
-							cout << "[SENDER.ch" << m_nChannel << "] send_audiotream sended(" << AUDIO_BUFF_SIZE << "), AudioCount : " << m_nAudioCount << endl;
+							cout << "[SENDER.ch" << m_nChannel << "] (" << target_time << ") send_audiotream sended(" << AUDIO_BUFF_SIZE << "), AudioCount : " << m_nAudioCount << endl;
 #endif
 						}
 						else
