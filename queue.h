@@ -2,7 +2,7 @@
 #define _QUEUE_H_
 
 #define MAX_NUM_QUEUE 4
-#define MAX_NUM_AUDIO_QUEUE 2
+#define MAX_NUM_AUDIO_QUEUE 10
 #define QUE_INFINITE -1
 #define MIN_BUF_FRAME 9
 
@@ -24,17 +24,16 @@ typedef struct tagVIDEOELEM
 class CQueue
 {
 public:
-	CQueue(int nMaxSize);
+	CQueue(int nMaxSize, int nChannel, string type);
 	~CQueue();
 
-	void SetInfo(int nChannel, string type);
 	void Clear();
 
-	int PutVideo(AVPacket *pkt, char isvisible);
-	int PutAudio(char *pData, int nSize, char statue);
+	int PutVideo(AVPacket *pkt, int64_t offset_pts, char isvisible);
+	int PutAudio(char *pData, int nSize, int64_t offset_pts, char statue);
 
-	int GetVideo(AVPacket *pkt, char *isvisible);
-	void *GetAudio();
+	int GetVideo(AVPacket *pkt, int64_t *offset_pts, char *isvisible);
+	void *GetAudio(int64_t *offset_pts);
 
 	void RetVideo(AVPacket *pkt);
 	void RetAudio(void *p);
@@ -48,7 +47,7 @@ public:
 
 	int GetVideoPacketSize() { return m_nPacket; }
 	int GetAudioPacketSize() { return m_nAudio; }
-	uint64_t GetCurrentVideoPTS();
+	int64_t GetCurrentPTS();
 	bool Exit();
 
 private:
@@ -76,9 +75,10 @@ private:
 	//int m_nReadFramePos;
 	//int m_nWriteFramePos;
 
-	uint64_t m_seek_pts;
+	uint64_t m_offset_pts;
 
 	uint64_t m_current_video_pts;
+	uint64_t m_current_audio_pts;
 
 	int m_nChannel;
 	string m_type;

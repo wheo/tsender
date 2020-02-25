@@ -21,7 +21,8 @@ public:
 	void Delete();
 	void SetSpeed(int speed);
 	void SetPause(bool state);
-	//void SetSyncPTS(uint64_t pts);
+	void SetPauseSync(int64_t sync_pts);
+	void SetSync(int64_t sync_pts);
 
 	//void SyncCheck();
 	void SetReverse(bool state);
@@ -35,30 +36,25 @@ public:
 		return m_mutex_demuxer;
 	}
 
-	uint64_t GetCurrentPTS();
-	void SetSyncPTS(uint64_t max_pts);
+	int64_t GetCurrentPTS();
+	int64_t GetCurrentOfffset();
 
 	bool Play();
-	void log(int type, int state);
 	bool GetOutputs(string basepath);
 	bool GetChannelFiles(string path);
-	bool GetChannelFilesRerverse(string path);
 	Json::Value GetThumbnail(int nSec);
 	//int Demux(string src_filename);
 	int Demux(Json::Value files);
 	//int DemuxRerverse(string src_filename);
 	bool SetMoveSec(int nSec);
-	bool SetMoveFrame(uint64_t nFrame);
-	bool SetMoveAudioCount(uint64_t audioCount);
+	bool SetMovePTS(int64_t pts);
 	bool Reverse();
-	bool SeekFrame(int nFrame);
 	bool SeekPTS(int64_t pts);
-	int FindFileIndexFromFrame(int nFrame, int *outnFrame);
 	int FindFileIndexFromPTS(int64_t pts);
 	int AudioSeek(uint64_t audioCount);
 	void Disable();
 	void Enable();
-	void Sync(bool state);
+	string GetChannelType(int nChannel);
 
 protected:
 	int m_nChannel;		// 현재 채널 넘버
@@ -67,17 +63,13 @@ protected:
 	CQueue *m_queue;
 	CSender *m_CSender;
 
-	char m_strShmPrefix[32];
-	int m_nRead;
-	int m_nWrite;
 	//double m_fps;
 	bool m_bIsRerverse;
-	int64_t m_currentDuration;
 	int64_t nFrame;
-	uint64_t m_lldur;
 	int m_n_gop;
 	bool m_isFOF;
 	bool m_isEOF;
+	string m_type;
 	//int64_t m_start_pts;
 	//bool m_b_ready_to_send_pts;
 
@@ -92,9 +84,7 @@ private:
 	int m_sock;				// 소켓 디스크립터
 
 	bool m_IsPause;
-
 	bool m_IsMove;
-
 	bool m_IsAudioRead;
 
 	Json::Value m_files;
@@ -102,33 +92,20 @@ private:
 	sockaddr_in m_mcast_group;
 	AVPacket m_pkt;
 	AVFormatContext *fmt_ctx;
-	int m_nSeekFrame;
-	int m_nSeekRestFrame;
-	uint64_t m_seek_pts_new;
+	int64_t m_seek_pts;
+	int64_t m_offset_pts;
 
 	char m_audio_status;
 
 	int m_nMoveIdx;
-	bool m_bIsSync;
 	bool m_next_keyframe;
-	int64_t m_sync_pts;
-	bool m_b_sync_check;
-	//double m_fMoveLeftSec;
-	double m_fDuration;
-	double m_fFPS;
-	int64_t m_current_pts;
-	bool m_bDisable;
-	bool m_isSyncing;
 
-	int64_t m_file_first_pts;
-	uint m_reverse_count;
-	uint m_sync_cnt;
-	int64_t m_seek_pts;
-	int64_t m_reverse_pts;
-	int64_t m_first_reverse_pts;
+	int64_t m_current_pts;
+	int64_t m_first_pts;
+	int64_t m_last_pts;
+	bool m_bDisable;
 
 	AVStream *m_pStream;
-	AVRational m_timeBase;
 	high_resolution_clock::time_point m_start_pts;
 
 	uint64_t m_nTotalFrame;

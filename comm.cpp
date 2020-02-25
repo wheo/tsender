@@ -82,7 +82,7 @@ bool CCommMgr::SetSocket()
 bool CCommMgr::Open(int nPort, Json::Value attr)
 {
 	m_nChannel = 0;
-	m_nSpeed = 1;
+	m_nSpeed = 0;
 	m_bIsPause = false;
 	m_bIsRunning = false;
 	m_bIsReverse = false;
@@ -145,10 +145,10 @@ bool CCommMgr::RX()
 			//parse success
 			if (root["cmd"] == "play_open")
 			{
-				int firstsleep = m_attr["firstsleeptime"].asInt();
 				m_attr["target"] = root["info"]["target"].asString();
 				m_attr["bit_state"] = root["info"]["bit_state"];
-				cout << "[COMM] firstsleeptime : " << firstsleep << endl;
+
+				m_bIsPause = false;
 
 				if (m_bIsRunning == true)
 				{
@@ -170,56 +170,55 @@ bool CCommMgr::RX()
 				for (int i = 0; i < m_nChannel; i++)
 				{
 					m_CDemuxer[i]->SetSpeed(0);
-					//m_CDemuxer[i]->SetPause(false);
+					m_CDemuxer[i]->SetPause(m_bIsPause);
 				}
-				//m_bIsPause = true;
 			}
 			if (root["cmd"] == "play_start")
 			{
 				m_attr["target"] = root["info"]["target"].asString();
 				m_attr["bit_state"] = root["info"]["bit_state"];
-				m_nMoveSec = root["info"]["move_sec"].asInt();
+				m_bIsPause = false;
 				if (m_bIsRunning == true)
 				{
-					cout << "[COMM] is running" << endl;
-					if (m_bIsPause == false)
+					cout << "[COMM] is running, speed (" << m_nSpeed << ")" << endl;
+					if (m_nSpeed > 0)
 					{
-						m_CDemuxer[6]->SetMoveSec(m_nMoveSec);
-						m_CDemuxer[7]->SetMoveSec(m_nMoveSec);
-					}
-					for (int i = 0; i < m_nChannel; i++)
-					{
-						if (m_CDemuxer[i])
+						m_bIsPause = false;
+						m_nSpeed = 0;
+						for (int i = 0; i < m_nChannel; i++)
 						{
-							//정배로 재생한다
-							m_CDemuxer[i]->SetReverse(false);
-							m_CDemuxer[i]->SetSpeed(0);
+							if (m_CDemuxer[i])
+							{
+								//정배속으로 재생한다
+								m_CDemuxer[i]->SetReverse(false);
+								m_CDemuxer[i]->SetSpeed(0);
+								m_CDemuxer[i]->SetPause(m_bIsPause);
+							}
+						}
+						int64_t max_pts = GetMaxPTS();
+						for (int i = 0; i < m_nChannel; i++)
+						{
+							if (m_CDemuxer[i])
+							{
+								//배속재생중에 Start를 누르면 해당위치로 구간점프를 한다
+								m_CDemuxer[i]->SetMovePTS(max_pts);
+							}
 						}
 					}
-
-					m_bIsPause = false;
-				}
-				else
-				{
-					cout << "[COMM] (" << root["cmd"].asString() << ") player is not running" << endl;
-				}
-			}
-			else if (root["cmd"] == "play_reverse")
-			{
-				m_nMoveSec = root["info"]["move_sec"].asInt();
-				m_nSpeed = root["info"]["speed"].asInt();
-				if (m_bIsRunning == true)
-				{
-					for (int i = 0; i < m_nChannel; i++)
+					else
 					{
-						//2초 보정
-						m_CDemuxer[i]->SetPause(false);
-						m_bIsPause = false;
-						m_CDemuxer[i]->SetMoveSec(m_nMoveSec + 2);
-						m_CDemuxer[i]->SetReverse(true);
-						m_bIsReverse = true;
-						m_CDemuxer[i]->SetSpeed(m_nSpeed);
+						for (int i = 0; i < m_nChannel; i++)
+						{
+							if (m_CDemuxer[i])
+							{
+								//정배속으로 재생한다
+								m_CDemuxer[i]->SetReverse(false);
+								m_CDemuxer[i]->SetSpeed(0);
+								m_CDemuxer[i]->SetPause(m_bIsPause);
+							}
+						}
 					}
+					//Sync(GetMaxPTS());
 				}
 				else
 				{
@@ -240,6 +239,28 @@ bool CCommMgr::RX()
 					cout << "[COMM] (" << root["cmd"].asString() << ") player is not running" << endl;
 				}
 			}
+			else if (root["cmd"] == "play_reverse")
+			{
+				m_nMoveSec = root["info"]["move_sec"].asInt();
+				m_nSpeed = root["info"]["speed"].asInt();
+				if (m_bIsRunning == true)
+				{
+					int64_t max_pts = GetMaxPTS();
+					for (int i = 0; i < m_nChannel; i++)
+					{
+						m_CDemuxer[i]->SetMovePTS(max_pts);
+						m_bIsPause = false;
+						m_CDemuxer[i]->SetPause(false);
+						m_bIsReverse = true;
+						m_CDemuxer[i]->SetReverse(m_bIsReverse);
+						m_CDemuxer[i]->SetSpeed(m_nSpeed);
+					}
+				}
+				else
+				{
+					cout << "[COMM] (" << root["cmd"].asString() << ") player is not running" << endl;
+				}
+			}
 			else if (root["cmd"] == "play_speed_up")
 			{
 				//배속 재생
@@ -249,30 +270,15 @@ bool CCommMgr::RX()
 					m_nSpeed = root["info"]["speed"].asInt();
 					m_nMoveSec = root["info"]["move_sec"].asInt();
 
+					int64_t max_pts = GetMaxPTS();
 					for (int i = 0; i < m_nChannel; i++)
 					{
-						// +2를 하는 이유는 보정
-						m_CDemuxer[i]->SetPause(false);
+						m_CDemuxer[i]->SetMovePTS(max_pts);
 						m_bIsPause = false;
-						m_CDemuxer[i]->SetMoveSec(m_nMoveSec + 2);
-						m_CDemuxer[i]->SetReverse(false);
+						m_CDemuxer[i]->SetPause(m_bIsPause);
 						m_bIsReverse = false;
+						m_CDemuxer[i]->SetReverse(m_bIsReverse);
 						m_CDemuxer[i]->SetSpeed(m_nSpeed);
-					}
-#if 0
-					for (int i = 0; i < m_nChannel; i++)
-					{
-						m_CDemuxer[i]->SetPause(true);
-					}
-					Sync();
-#endif
-					//usleep(300000);
-
-					for (int i = 0; i < m_nChannel; i++)
-					{
-						//m_CDemuxer[i]->SetReverse(false);
-						//m_CDemuxer[i]->SetSpeed(m_nSpeed);
-						//m_CDemuxer[i]->SetPause(false);
 					}
 				}
 				else
@@ -283,7 +289,6 @@ bool CCommMgr::RX()
 			else if (root["cmd"] == "play_pause")
 			{
 				//멈춤
-				m_nMoveSec = root["info"]["move_sec"].asInt();
 				if (m_bIsRunning == true)
 				{
 					if (m_bIsPause == false)
@@ -292,8 +297,12 @@ bool CCommMgr::RX()
 						{
 							m_CDemuxer[i]->SetPause(true);
 						}
+						int max_pts = GetMaxPTS();
+						for (int i = 0; i < m_nChannel; i++)
+						{
+							m_CDemuxer[i]->SetPauseSync(max_pts);
+						}
 						m_bIsPause = true;
-						Sync();
 					}
 				}
 				else
@@ -306,21 +315,14 @@ bool CCommMgr::RX()
 				if (m_bIsRunning)
 				{
 					m_nMoveSec = root["info"]["move_sec"].asInt();
-					m_nSpeed = root["info"]["speed"].asInt();
-					cout << "[COMM] Move sec : " << m_nMoveSec << endl;
 					for (int i = 0; i < m_nChannel; i++)
 					{
-						//m_CDemuxer[i]->SetPause(true);
 						m_CDemuxer[i]->SetMoveSec(m_nMoveSec);
+						if (m_bIsPause == true)
+						{
+							m_CDemuxer[i]->SetPauseSync(m_nMoveSec * AV_TIME_BASE + (AV_TIME_BASE / 4));
+						}
 					}
-//Sync();
-//usleep(1000000);
-#if 0
-					for (int i = 0; i < m_nChannel; i++)
-					{
-						m_CDemuxer[i]->SetPause(m_bIsPause);
-					}
-#endif
 				}
 				else
 				{
@@ -427,19 +429,14 @@ bool CCommMgr::TX(char *buff, int size)
 	cout << "[COMM] ip : " << inet_ntoa(m_sin.sin_addr) << " port : " << htons(m_sin.sin_port) << ", send message(" << size << ") : " << buff << endl;
 }
 
-void CCommMgr::Sync()
+int64_t CCommMgr::GetMaxPTS()
 {
-	for (int i = 0; i < 6; i++)
-	{
-		m_CDemuxer[i]->Sync(true);
-	}
-
-	usleep(260000); // 1,000,000 = 1초
-	uint64_t max_pts = 0;
-	int max_index = 0;
 	int state = m_attr["bit_state"].asInt();
 	int result = 0;
-	for (int i = 0; i < 6; i++)
+	uint64_t max_pts = 0;
+	int max_index = 0;
+
+	for (int i = 0; i < ALL_VIDEO_CHANNEL_NUM; i++)
 	{
 		result = state & (1 << i);
 		if (state > 0)
@@ -452,27 +449,23 @@ void CCommMgr::Sync()
 			}
 		}
 		cout << "[COMM] Channel : " << i << ", current pts : " << m_CDemuxer[i]->GetCurrentPTS() << endl;
+		//cout << "[COMM] Channel : " << i << ", current pts : " << m_CDemuxer[i]->GetCurrentOfffset() << endl;
 		if (max_pts < m_CDemuxer[i]->GetCurrentPTS())
 		{
 			max_pts = m_CDemuxer[i]->GetCurrentPTS();
 			max_index = i;
 		}
 	}
-	cout << "[COMM] sync pts (" << max_index << ") : " << max_pts << endl;
+	cout << "[COMM] max pts (" << max_index << ") : " << max_pts << endl;
+	return max_pts;
+}
 
-	for (int i = 0; i < 6; i++)
+void CCommMgr::Sync(int64_t sync_pts)
+{
+	usleep(AV_TIME_BASE * 2);
+	for (int i = 0; i < m_nChannel; i++)
 	{
-		result = state & (1 << i);
-		if (state > 0)
-		{
-			//cout << "[COMM] Channel : " << m_nChannel << "] bit state is " << state << ", result : " << result << endl;
-			if (result < 1)
-			{
-				//cout << "[COMM] Channel : " << m_nChannel << "] is not use" << endl;
-				continue;
-			}
-		}
-		m_CDemuxer[i]->SetSyncPTS(max_pts);
+		m_CDemuxer[i]->SetSync(sync_pts);
 	}
 }
 

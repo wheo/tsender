@@ -59,7 +59,6 @@ bool CCore::Create()
 			sstm << "mkdir -p " << m_root["file_dst"].asString();
 			system(sstm.str().c_str());
 
-			cout << "[CORE] version : " << attr["version"].asString() << endl;
 			cout << "[CORE] file_dst : " << attr["file_dst"].asString() << endl;
 
 			UndeleteFileDelete();

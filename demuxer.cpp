@@ -26,10 +26,6 @@ CDemuxer::~CDemuxer(void)
 	//pthread_mutex_destroy(m_mutex_demuxer);
 }
 
-void CDemuxer::log(int type, int state)
-{
-}
-
 bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 {
 	fmt_ctx = NULL;
@@ -37,41 +33,30 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 	m_nChannel = nChannel;
 	m_attr = attr;
 	m_file_idx = 0;
-	m_nSpeed = 1;
-	m_nSeekFrame = 0;
-	m_is_skip = false;
-	m_sync_cnt = 0;
-	m_IsPause = false;
+	m_nSpeed = 0;
 	m_bIsRerverse = false;
 	m_IsMove = false;
 	m_nTotalFrame = 0;
 	m_files = NULL;
-	m_file_first_pts = 0;
-	m_reverse_count = 0;
-	m_reverse_pts = 0;
-	m_first_reverse_pts = 0;
-	m_sync_pts = 0;
-	m_lldur = 0;
-	m_b_sync_check = false;
+
 	m_pStream = NULL;
 
 	m_CSender = NULL;
 	m_queue = NULL;
 
 	m_current_pts = 0;
+	m_first_pts = 0;
+	m_last_pts = 0;
 	m_bDisable = false;
 
 	m_audio_status = 0;
 	m_isFOF = false;
 	m_isEOF = false;
-	m_isSyncing = false;
+	m_offset_pts = 0;
 
-	m_seek_pts_new = -1;
+	m_seek_pts = -1;
 
 	m_n_gop = m_info["gop"].asInt();
-	uint64_t num = m_info["num"].asUInt64();
-	uint64_t den = m_info["den"].asUInt64();
-
 	m_nAudioCount = 0;
 	refcount = 0; // 1과 0의 차이를 알아보자
 
@@ -94,25 +79,43 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 	if (m_nChannel < 4)
 	{
 		nQueueSize = 2;
-		m_sync_pts = 30000;
 	}
-	else if (m_nChannel >= 4)
+	else if (m_nChannel == 4 || m_nChannel == 5)
 	{
 		nQueueSize = 2;
-		m_sync_pts = 8192;
+	}
+	else if (m_nChannel == 6 || m_nChannel == 7)
+	{
+		nQueueSize = 10;
 	}
 
-	m_queue = new CQueue(nQueueSize);
-	m_queue->SetInfo(m_nChannel, m_info["type"].asString());
+	string type = GetChannelType(m_nChannel);
 
-	cout << "[DEMUXER.ch" << m_nChannel << "] type : " << m_info["type"].asString() << endl;
+	m_type = type;
+
+	m_queue = new CQueue(nQueueSize, m_nChannel, type);
+	cout << "[DEMUXER.ch" << m_nChannel << "] type : " << type << ", size : " << nQueueSize << endl;
 
 	m_CSender = new CSender();
-	m_CSender->Create(info, attr, nChannel);
+	m_CSender->Create(info, attr, type, nChannel);
 	m_CSender->SetQueue(&m_queue, nChannel);
 
 	Start();
 	return true;
+}
+
+string CDemuxer::GetChannelType(int nChannel)
+{
+	string ret_type = "";
+	if (nChannel < 6)
+	{
+		ret_type = "video";
+	}
+	else if (nChannel >= 6)
+	{
+		ret_type = "audio";
+	}
+	return ret_type;
 }
 
 bool CDemuxer::SetMutex(pthread_mutex_t *mutex)
@@ -121,76 +124,14 @@ bool CDemuxer::SetMutex(pthread_mutex_t *mutex)
 	//cout << "[DEMUXER.ch" << m_nChannel << "] m_mutex_sender address : " << m_mutex_demuxer << endl;
 }
 
-uint64_t CDemuxer::GetCurrentPTS()
+int64_t CDemuxer::GetCurrentOfffset()
 {
-	uint64_t pts = 0;
-	uint64_t convert_pts = 0;
-	uint64_t num = m_info["num"].asUInt64();
-	uint64_t den = m_info["den"].asUInt64();
-
-#if 0
-	if (m_bIsRerverse == true)
-	{
-		if (m_queue)
-		{
-			pts = m_queue->GetCurrentVideoPTS();
-			if (m_timeBase.den != 0)
-			{
-				convert_pts = pts * AV_TIME_BASE / m_timeBase.den;
-			}
-			else if (num == 1001)
-			{
-				convert_pts = pts * AV_TIME_BASE / den;
-			}
-			else if (num == 1)
-			{
-				convert_pts = pts * AV_TIME_BASE / 16384;
-			}
-		}
-		return convert_pts;
-	}
-	else
-	{
-		if (m_timeBase.den != 0)
-		{
-			convert_pts = m_current_pts * AV_TIME_BASE / m_timeBase.den;
-		}
-		else if (num == 1001)
-		{
-			convert_pts = m_current_pts * AV_TIME_BASE / den;
-		}
-		else if (num == 1)
-		{
-			convert_pts = m_current_pts * AV_TIME_BASE / 16384;
-		}
-		return convert_pts;
-	}
-#endif
-	if (m_timeBase.den != 0)
-	{
-		convert_pts = m_current_pts * AV_TIME_BASE / m_timeBase.den;
-	}
-	else if (num == 1001)
-	{
-		convert_pts = m_current_pts * AV_TIME_BASE / den;
-	}
-	else if (num == 1)
-	{
-		convert_pts = m_current_pts * AV_TIME_BASE / 16384;
-	}
-	return convert_pts;
+	return m_offset_pts;
 }
 
-void CDemuxer::SetSyncPTS(uint64_t pts)
+int64_t CDemuxer::GetCurrentPTS()
 {
-	uint64_t convert_pts = pts * m_timeBase.den / AV_TIME_BASE;
-	cout << "[DEMUXER.ch" << m_nChannel << "] sync : " << pts << ", convert sync pts : " << convert_pts << endl;
-	m_sync_pts = convert_pts;
-}
-
-void CDemuxer::Sync(bool state)
-{
-	m_isSyncing = state;
+	return m_queue->GetCurrentPTS();
 }
 
 void CDemuxer::Disable()
@@ -267,7 +208,6 @@ bool CDemuxer::GetChannelFiles(string path)
 		cout << "[DEMUXER.ch" << m_nChannel << "] success" << endl;
 		m_current_pts = 0;
 	}
-
 	return true;
 }
 
@@ -275,13 +215,8 @@ int CDemuxer::Demux(Json::Value files)
 {
 	string src_filename = "";
 	Json::Value value;
-	//m_nFrameCount = 0;
-	m_seek_pts = 0;
 	// file 데이터 전역변수로 복사
 	m_files = files;
-
-	int pts_diff = 0;
-	uint64_t old_pts = 0;
 
 	for (int i = 0; i < files.size(); i++)
 	{
@@ -289,39 +224,31 @@ int CDemuxer::Demux(Json::Value files)
 	}
 
 	int codec = m_attr["codec"].asInt(); // 0 : H264, 1 : HEVC
-	uint64_t num = m_info["num"].asUInt64();
-	uint64_t den = m_info["den"].asUInt64();
-
-	;
 	bool pauseOld = false;
 	bool reverseOld = false;
+	int speedOld = 0;
 	bool MoveFirstPacket = false;
 	char isvisible = 1;
 	for (int i = 0; i < files.size(); i++)
 	{
 		value = files[i];
-
 		if (m_bExit == true)
 		{
 			break;
 		}
-		uint last_frame = value["frame"].asUInt();
-		//int keyframe_speed = m_attr["keyframe_speed"].asInt();
-
-		if (last_frame == 0)
-		{
-			break;
-		}
-
-		src_filename = value["name"].asString();
-		string type = m_info["type"].asString();
-		ifstream ifs;
 
 		m_IsAudioRead = false;
+		src_filename = value["name"].asString();
+
+		//현재파일의 처음 PTS
+		m_first_pts = files[i]["first_pts"].asInt64();
+		//현재파일의 마지막 PTS
+		m_last_pts = files[i]["last_pts"].asInt64();
+
+		ifstream ifs;
 
 		int ret = 0;
-
-		if (type == "video")
+		if (m_type == "video")
 		{
 			if (avformat_open_input(&fmt_ctx, src_filename.c_str(), NULL, NULL) < 0)
 			{
@@ -330,12 +257,7 @@ int CDemuxer::Demux(Json::Value files)
 			}
 			else
 			{
-				m_currentDuration = fmt_ctx->duration;
-
 				m_pStream = fmt_ctx->streams[0];
-				m_timeBase = m_pStream->time_base;
-				m_lldur = num * m_timeBase.den / den;
-				cout << "[DEMUXER.ch" << m_nChannel << "] " << src_filename << " file is opened (" << m_currentDuration << "), lldur (" << m_lldur << ")" << endl;
 			}
 
 			ret = avformat_find_stream_info(fmt_ctx, NULL);
@@ -356,17 +278,13 @@ int CDemuxer::Demux(Json::Value files)
 					fprintf(stderr, "[DEMUXER.VIDEO] Could not find audio or video stream in the input, aborting\n");
 					ret = 1;
 				}
-				else
-				{
-					m_CSender->SetAVFormatContext(&fmt_ctx);
-				}
 			}
 
-			if (codec == 0)
+			if (codec == 0) // h264
 			{
 				m_bsf = av_bsf_get_by_name("h264_metadata");
 			}
-			else if (codec == 1)
+			else if (codec == 1) //hevc
 			{
 				m_bsf = av_bsf_get_by_name("hevc_metadata");
 			}
@@ -392,10 +310,8 @@ int CDemuxer::Demux(Json::Value files)
 				}
 			}
 		}
-		else if (type == "audio")
+		else if (m_type == "audio")
 		{
-			m_timeBase.den = 34;
-			m_timeBase.num = 1;
 			// fileopen
 			ifs.open(src_filename, ios::in);
 			if (!ifs.is_open())
@@ -409,8 +325,6 @@ int CDemuxer::Demux(Json::Value files)
 			}
 		}
 
-		m_file_first_pts = 0;
-
 		AVPacket pkt;
 		av_init_packet(&pkt);
 		pkt.data = NULL;
@@ -422,9 +336,10 @@ int CDemuxer::Demux(Json::Value files)
 			bool isPause = m_IsPause;
 			bool isReverse = m_bIsRerverse;
 			bool isMove = m_IsMove;
-			int nSeekFrame = m_nSeekFrame;
-			int64_t seek_pts = m_seek_pts_new;
-			if (type == "video")
+			int64_t seek_pts = m_seek_pts;
+			int nSpeed = m_nSpeed;
+
+			if (m_type == "video")
 			{
 				if (isMove == true)
 				{
@@ -452,106 +367,16 @@ int CDemuxer::Demux(Json::Value files)
 					{
 						i = files.size() - 2;
 					}
-					cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] (" << i << "/" << files.size() << ")" << endl;
+					//cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] file (" << i << "/" << files.size() << ")" << endl;
 					break;
 				}
 
-				if (seek_pts > 0)
-				{
-					m_seek_pts_new = 0;
-				}
-
-#if 0
-				if (nSeekFrame > 0)
-				{
-					SeekFrame(nSeekFrame);
-					m_nSeekFrame = 0;
-					MoveFirstPacket = true;
-				}
-#endif
-
-				if (m_isFOF == false && m_isEOF == false)
-				{
-					if (isPause == false)
-					{
-						av_packet_unref(&pkt);
-						av_init_packet(&pkt);
-
-						pkt.data = NULL;
-						pkt.size = 0;
-						//av_init_packet 에 포함되었으므로 초기화 할 필요 없음
-						//pkt.pts = 0;
-
-						if (av_read_frame(fmt_ctx, &pkt) < 0)
-						{
-							if (i + 1 < files.size())
-							{
-								cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] meet EOF(" << fmt_ctx->filename << "), (" << i + 1 << "/" << files.size() << ")" << endl;
-								avformat_close_input(&fmt_ctx);
-								fmt_ctx = NULL;
-								//cout << "[DEMUXER.ch" << m_nChannel << "] meet index(" << i + 1 << "/" << files.size() << ")" << endl;
-								break;
-							}
-							else
-							{
-								m_isEOF = true;
-								cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] meet END OF FILELIST (" << i + 1 << "/" << files.size() << "), " << m_isEOF << ", " << m_isFOF << endl;
-								continue;
-							}
-						}
-						else
-						{
-							m_current_pts = pkt.pts;
-							m_pStream = fmt_ctx->streams[0];
-							m_timeBase = m_pStream->time_base;
-							cout << "[DEMUXER.ch" << m_nChannel << "] av_read_frame : " << pkt.pts << ", size : " << pkt.size << endl;
-
-							if (m_file_first_pts == 0)
-							{
-								m_file_first_pts = fmt_ctx->start_time;
-							}
-						}
-
-						if ((ret = av_bsf_send_packet(m_bsfc, &pkt)) < 0)
-						{
-							av_log(fmt_ctx, AV_LOG_ERROR, "Failed to send packet to filter %s for stream %d\n", m_bsfc->filter->name, pkt.stream_index);
-							cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] current pts : " << pkt.pts << endl;
-						}
-						// TODO: when any automatically-added bitstream filter is generating multiple
-						// output packets for a single input one, we'll need to call this in a loop
-						// and write each output packet.
-						if ((ret = av_bsf_receive_packet(m_bsfc, &pkt)) < 0)
-						{
-							if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
-							{
-								av_log(fmt_ctx, AV_LOG_ERROR, "Failed to receive packet from filter %s for stream %d\n", m_bsfc->filter->name, pkt.stream_index);
-								cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] current pts : " << pkt.pts << endl;
-							}
-							if (fmt_ctx->error_recognition & AV_EF_EXPLODE)
-							{
-								//
-							}
-						}
-						//cout << "[DEMUXER.ch" << m_nChannel << "] m_nSeekFrame : " << m_nSeekFrame << ", seek_pts : " << m_seek_pts << ", current pts : " << pkt.pts << ", size : " << pkt.size << endl;
-					}
-				}
-				else
-				{
-					m_isFOF = false;
-				}
-
-				if (isPause == false)
+				//reverse가 먼저야 seek가 먼저야? 확인하자 20200221
+				if (seek_pts == 0)
 				{
 					if (isReverse == true)
 					{
 						m_isEOF = false;
-						m_reverse_count++;
-						if (m_reverse_count == 1)
-						{
-							//reverse가 시작하면 현재 pts를 기준으로 역탐색을 시작함
-							m_reverse_pts = pkt.pts - m_lldur;
-						}
-
 						if (Reverse())
 						{
 							//Reverse continue
@@ -562,74 +387,128 @@ int CDemuxer::Demux(Json::Value files)
 						}
 					}
 				}
-				if (pkt.size > 0)
+
+				if (seek_pts > 0)
 				{
-#if 0
-					if (m_nChannel >= 0)
+					m_seek_pts = 0;
+					SeekPTS(seek_pts);
+				}
+
+				if (m_isFOF == false && m_isEOF == false)
+				{
+					av_packet_unref(&pkt);
+					av_init_packet(&pkt);
+
+					pkt.data = NULL;
+					pkt.size = 0;
+					//av_init_packet 에 포함되었으므로 초기화 할 필요 없음
+					//pkt.pts = 0;
+
+					if (av_read_frame(fmt_ctx, &pkt) < 0)
 					{
-						pts_diff = llabs(pkt.pts - old_pts);
-						if ((pts_diff == m_lldur * 2 && isPause == false) || ((pts_diff == m_lldur * m_n_gop * 2) && isPause == false))
+						if (i + 1 < files.size())
 						{
-							//여기서 같은 pkt 버퍼 한개 더 보충함
-							pkt_dup_count++;
-							cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "]  diff (" << pts_diff << "), (" << m_lldur << "), pts : (" << pkt.pts << "), old (" << old_pts << ")" << endl;
-						}
-					}
-#endif
-					while (m_bExit == false)
-					{
-#if 0
-						if (pkt.pts != 0 && pkt.pts == old_pts)
-						{
-							//cout << "[DEMUXER.ch" << m_nChannel << "] (" << pkt.pts << ") same" << endl;
+							cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] meet EOF(" << fmt_ctx->filename << "), (" << i + 1 << "/" << files.size() << ")" << endl;
+							avformat_close_input(&fmt_ctx);
+							fmt_ctx = NULL;
+							//cout << "[DEMUXER.ch" << m_nChannel << "] meet index(" << i + 1 << "/" << files.size() << ")" << endl;
 							break;
 						}
-
 						else
 						{
-							//cout << "[DEMUXER.ch" << m_nChannel << "] (" << pkt.pts << ") put" << endl;
+							m_isEOF = true;
+							cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] meet END OF FILELIST (" << i + 1 << "/" << files.size() << "), " << m_isEOF << ", " << m_isFOF << endl;
+							continue;
 						}
+					}
+					else
+					{
+						m_current_pts = pkt.pts;
+						m_pStream = fmt_ctx->streams[0];
+#if 0
+						cout << "[DEMUXER.ch" << m_nChannel << "] av_read_frame (" << pkt.pts << "), size : " << pkt.size << endl;
 #endif
-						if (m_queue->PutVideo(&pkt, isvisible) > 0)
+						if (seek_pts > 0)
+						{
+							//m_offset_pts = pkt.pts; // 이렇게 하면 offset이 각 채널마다 달라지기 때문에 싱크가 맞지 않는다.
+							//offset_pts 로 싱크를 맞추는 부분 SEEK를 할 경우 탐색 기준 PTS로 싱크를 맞추려고 시도함
+							m_offset_pts = seek_pts + (16667 * 5);
+						}
+					}
+
+					if ((ret = av_bsf_send_packet(m_bsfc, &pkt)) < 0)
+					{
+						av_log(fmt_ctx, AV_LOG_ERROR, "Failed to send packet to filter %s for stream %d\n", m_bsfc->filter->name, pkt.stream_index);
+						cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] current pts : " << pkt.pts << endl;
+					}
+					// TODO: when any automatically-added bitstream filter is generating multiple
+					// output packets for a single input one, we'll need to call this in a loop
+					// and write each output packet.
+					if ((ret = av_bsf_receive_packet(m_bsfc, &pkt)) < 0)
+					{
+						if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+						{
+							av_log(fmt_ctx, AV_LOG_ERROR, "Failed to receive packet from filter %s for stream %d\n", m_bsfc->filter->name, pkt.stream_index);
+							cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] current pts : " << pkt.pts << endl;
+						}
+						if (fmt_ctx->error_recognition & AV_EF_EXPLODE)
+						{
+							//
+						}
+					}
+				}
+
+				if (pkt.size > 0)
+				{
+					while (m_bExit == false)
+					{
+						if (nSpeed != speedOld)
+						{
+							m_queue->Clear();
+						}
+						if (nSpeed > 0)
+						{
+							if (pkt.flags != AV_PKT_FLAG_KEY)
+							{
+								break;
+							}
+						}
+						if (m_queue->PutVideo(&pkt, m_offset_pts, isvisible) > 0)
 						{
 							//비디오 패킷 put 완료 후 시점
 							//pkt_dup_count--;
-							//cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] put!!!!!!!, diff (" << pts_diff << "), (" << m_lldur << "), pts : (" << pkt.pts << "), old (" << old_pts << ")" << endl;
 							break;
 						}
 						else
 						{
-							//버퍼가 꽉 차서 버퍼에 pkt을 넣을 수 없을 때 1000 usec 휴식
-							usleep(1000);
+							//버퍼가 꽉 차서 버퍼에 pkt을 넣을 수 없을 때 1 usec 휴식
+							usleep(1);
 						}
 					}
-					old_pts = pkt.pts;
-
-					if (m_isFOF == true && i > 0)
-					{
-						i = i - 2; // 직전 인덱스로 이동
-						//cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] File first pos and set index : " << i << endl;
-						break;
-					}
-					//usleep(10);
 				}
-			}
-			else if (type == "audio")
-			{
-				char audio_buf[AUDIO_BUFF_SIZE];
-#if 0
-				if (m_IsMove == true)
+				speedOld = nSpeed;
+				if (m_isFOF == true && i > 0)
 				{
-					m_IsMove = false;
-					i = m_nMoveIdx - 1;
+					i = i - 2; // 직전 인덱스로 이동
+					cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] File first pos and set index : " << i << endl;
+					m_isFOF = false;
 					break;
 				}
-#endif
+				else if (m_isFOF == true && i == 0)
+				{
+					i = 0;
+					cout << "[DEMUXER.VIDEO.ch" << m_nChannel << "] File first pos and set index : " << i << endl;
+					m_isFOF = false;
+				}
+			}
+			else if (m_type == "audio")
+			{
+				char audio_buf[AUDIO_BUFF_SIZE];
+
 				if (isMove == true)
 				{
 					m_isEOF = false;
-					cout << "[DEMUXER:AUDIO.ch" << m_nChannel << "] move : true (" << m_nMoveIdx << ")/(" << files.size() << "), (" << nSeekFrame << ")" << endl;
-					if (m_nMoveIdx < files.size() - 1)
+					if (m_nMoveIdx < files.size())
 					{
 						i = m_nMoveIdx - 1;
 						m_IsMove = false;
@@ -648,54 +527,59 @@ int CDemuxer::Demux(Json::Value files)
 					//cout << "[DEMUXER:AUDIO.ch" << m_nChannel << "] move eof , seekframe (" << m_nSeekFrame << ")" << endl;
 					continue;
 				}
-
-				if (nSeekFrame > 0)
+#if 1
+				if (seek_pts > 0)
 				{
-					m_nAudioCount = nSeekFrame;
 					//m_nSeekFrame = m_nSeekFrame - (last_frame * m_nMoveIdx);
 					//MoveFrame(m_nMoveFrame);
 
 					if (ifs.is_open())
 					{
-						int target = m_nSeekRestFrame * AUDIO_BUFF_SIZE;
-						ifs.seekg(target);
-						cout << "[DEMUXER:AUDIO.ch" << m_nChannel << "] move audio frame (" << m_nMoveIdx << "), (" << nSeekFrame << "), (" << m_nSeekRestFrame << ")" << endl;
+						m_queue->Clear();
+						while (!m_bExit)
+						{
+							int64_t audio_pts;
+							ifs.read(audio_buf, AUDIO_BUFF_SIZE);
+
+							memcpy(&audio_pts, audio_buf, 8);
+							if (audio_pts > seek_pts)
+							{
+								cout << "[DEMUXER:AudioSeek.ch" << m_nChannel << "] move audio idx(" << m_nMoveIdx << "), pts(" << audio_pts << "), (" << seek_pts << ")" << endl;
+								m_current_pts = audio_pts;
+								if (seek_pts > 0)
+								{
+									m_offset_pts = audio_pts;
+								}
+								m_seek_pts = 0;
+								break;
+							}
+							else
+							{
+								//cout << "[DEMUXER:AudioSeek.ch" << m_nChannel << "] seeking ...... (" << audio_pts << "), (" << seek_pts << ")" << endl;
+							}
+						}
 					}
-
-					m_nSeekFrame = 0;
-					m_seek_pts = (m_nAudioCount * AV_TIME_BASE * num) / den;
-					m_current_pts = m_seek_pts;
-					m_IsAudioRead = false;
 					m_audio_status = 1;
-
-					m_queue->Clear();
-					//m_start_pts = high_resolution_clock::now();
 				}
-
-				if (isPause == false)
+#endif
+				if (ifs.is_open())
 				{
 					if (m_IsAudioRead == false)
 					{
-						m_queue->Enable();
-						if (ifs.is_open())
-						{
-							ifs.read(audio_buf, AUDIO_BUFF_SIZE);
-						}
-						m_nAudioCount++;
-						m_seek_pts = (m_nAudioCount * AV_TIME_BASE * num) / den;
+						//int64_t audio_pts;
+						ifs.read(audio_buf, AUDIO_BUFF_SIZE);
+						//memcpy(&audio_pts, audio_buf, 8);
+						//cout << "[DEMUXER.AUDIO.ch" << m_nChannel << "] read audio from file : " << src_filename.c_str() << ", (" << audio_pts << ")" << endl;
 						m_IsAudioRead = true;
-						//cout << "[DEMUXER.AUDIO.ch" << m_nChannel << "] read audio from file : " << m_nAudioCount << endl;
 					}
-				}
-
-				isPause = pauseOld;
-
-				if (m_IsAudioRead == true)
-				{
-					if (m_queue->PutAudio(audio_buf, AUDIO_BUFF_SIZE, m_audio_status) > 0)
+					if (m_queue->PutAudio(audio_buf, AUDIO_BUFF_SIZE, m_offset_pts, m_audio_status) > 0)
 					{
 						m_IsAudioRead = false;
 						m_audio_status = 0;
+					}
+					else
+					{
+						usleep(1);
 					}
 				}
 
@@ -717,13 +601,13 @@ int CDemuxer::Demux(Json::Value files)
 			}
 		}
 
-		if (type == "video" && fmt_ctx)
+		if (m_type == "video" && fmt_ctx)
 		{
 			//cout << "[DEMUXER.ch" << m_nChannel << "] avformat_close_input (" << fmt_ctx->filename << endl;
 			avformat_close_input(&fmt_ctx);
 			fmt_ctx = NULL;
 		}
-		if (type == "audio" && ifs.is_open())
+		if (m_type == "audio" && ifs.is_open())
 		{
 			ifs.close();
 		}
@@ -736,99 +620,23 @@ int CDemuxer::Demux(Json::Value files)
 
 bool CDemuxer::SetMoveSec(int nSec)
 {
-	double ret;
-#if 0
-	uint64_t num = m_info["num"].asUInt64();
-	uint64_t den = m_info["den"].asUInt64();
-#endif
-	//uint64_t nFrame = (nSec * den) / num;
 	int64_t pts = nSec * AV_TIME_BASE;
-	int restFrame;
-	//m_nMoveIdx = FindFileIndexFromFrame(nFrame, &restFrame);
-	m_nMoveIdx = FindFileIndexFromPTS(pts);
-
-	m_IsMove = true;
-	//m_nSeekFrame = nFrame;
-	//m_nSeekRestFrame = restFrame;
-	m_seek_pts_new = pts;
-
-	if (m_nMoveIdx > 0)
-	{
-		cout << "[DEMUXER.ch" << m_nChannel << "] input pts : " << pts << ", move index : " << m_nMoveIdx << endl;
-	}
-}
-
-#if 0
-bool CDemuxer::SetMoveFrame(uint64_t nFrame)
-{
-	double ret;
-	uint64_t num = m_info["num"].asUInt64();
-	uint64_t den = m_info["den"].asUInt64();
-	int restFrame;
-	//uint64_t nFrame = (nSec * den) / num;
+#if FRAME
 	m_nMoveIdx = FindFileIndexFromFrame(nFrame, &restFrame);
-
-	m_nSeekFrame = nFrame;
-	m_nSeekRestFrame = restFrame;
-	cout << "[DEMUXER.ch" << m_nChannel << "] input frame : " << nFrame << ", rest frame : " << m_nSeekRestFrame << ", move index : " << m_nMoveIdx << endl;
-	m_IsMove = true;
-}
+#else
+	m_nMoveIdx = FindFileIndexFromPTS(pts);
 #endif
-
-#if 0
-bool CDemuxer::SetMoveAudioCount(uint64_t audioCount)
-{
-	double ret;
-	uint64_t num = m_info["num"].asUInt64();
-	uint64_t den = m_info["den"].asUInt64();
-	m_nMoveIdx = FindFileIndexFromFrame(audioCount);
-	//cout << "[DEMUXER.ch" << m_nChannel << "] input audioCount : " << audioCount << ", move index : " << m_nMoveIdx << endl;
-
-	m_nSeekFrame = audioCount;
 	m_IsMove = true;
+	m_seek_pts = pts;
+	cout << "[DEMUXER.SetMoveSec.ch" << m_nChannel << "] input pts : " << pts << ", move index : " << m_nMoveIdx << endl;
 }
-#endif
 
-bool CDemuxer::SeekFrame(int nFrame)
+bool CDemuxer::SetMovePTS(int64_t pts)
 {
-	uint64_t num = m_info["num"].asInt();
-	uint64_t den = m_info["den"].asInt();
-
-	int ret = 0;
-
-	AVPacket pkt;
-	av_init_packet(&pkt);
-	av_read_frame(fmt_ctx, &pkt);
-
-	if (m_file_first_pts == 0)
-	{
-		m_file_first_pts = fmt_ctx->start_time;
-		//cout << "[DEMUXER.SeekFrame.ch" << m_nChannel << "] first pts : " << (m_file_first_pts / AV_TIME_BASE) * den << endl;
-		//cout << "[DEMUXER.SeekFrame.ch" << m_nChannel << "] start : " << fmt_ctx->start_time << ", end : " << fmt_ctx->start_time + fmt_ctx->duration << endl;
-	}
-	av_packet_unref(&pkt);
-	uint64_t tm = nFrame * m_lldur;
-
-	if (m_nChannel < 6)
-	{
-		ret = avformat_seek_file(fmt_ctx, 0, 0, tm, tm, AVSEEK_FLAG_FRAME);
-		if (ret > -1)
-		{
-			//_d("[DEMUXER:SeekFrame.ch%d] ret : %d , tm(%lld), lldur(%lld), current_pts(%lld) seek completed\n", m_nChannel, ret, tm, m_lldur, m_current_pts);
-			if (m_bIsRerverse == true)
-			{
-				m_reverse_pts = tm;
-			}
-		}
-		else
-		{
-			cout << "[DEMUXER.SeekFrame.ch" << m_nChannel << "] seek error " << endl;
-		}
-		m_seek_pts = tm * AV_TIME_BASE / m_timeBase.den;
-
-		cout << "[DEMUXER.SeekFrame.ch" << m_nChannel << "] seek pts : " << m_seek_pts << endl;
-		//m_start_pts = high_resolution_clock::now();
-	}
+	m_nMoveIdx = FindFileIndexFromPTS(pts);
+	m_IsMove = true;
+	m_seek_pts = pts;
+	cout << "[DEMUXER.SetMovePTS.ch" << m_nChannel << "] input pts : " << pts << ", move index : " << m_nMoveIdx << endl;
 }
 
 bool CDemuxer::SeekPTS(int64_t pts)
@@ -840,46 +648,37 @@ bool CDemuxer::SeekPTS(int64_t pts)
 		ret = avformat_seek_file(fmt_ctx, 0, 0, pts, pts, AVSEEK_FLAG_FRAME);
 		if (ret > -1)
 		{
-			_d("[DEMUXER:SeekFrame.ch%d] ret : %d , target_pts (%lld), current_pts(%lld) seek completed\n", m_nChannel, ret, pts, m_current_pts);
+			_d("[DEMUXER:SeekPTS.ch%d] target_pts (%lld), current_pts(%lld) seek completed\n", m_nChannel, pts, m_current_pts);
 		}
 		else
 		{
-			cout << "[DEMUXER.SeekFrame.ch" << m_nChannel << "] seek error " << endl;
+			cout << "[DEMUXER.SeekPTS.ch" << m_nChannel << "] seek error " << endl;
 		}
 	}
 }
 
-int CDemuxer::AudioSeek(uint64_t audioCount)
-{
-	return 0;
-}
-
 bool CDemuxer::Reverse()
 {
-	//uint64_t num = m_info["num"].asUInt64();
-	//uint64_t den = m_info["den"].asUInt64();
 	//avcodec_flush_buffers(fmt_ctx->streams[0]->codec);
 	int ret = 0;
-	AVStream *pStream = fmt_ctx->streams[0];
-	AVRational timeBase = pStream->time_base;
+	int64_t reverse_target_pts = m_current_pts - 1000; // 지금보다 1000 전의 PTS
 
-	m_reverse_pts = m_reverse_pts - (m_lldur * m_n_gop);
 	if (m_nChannel < 6)
 	{
-		ret = avformat_seek_file(fmt_ctx, 0, 0, m_reverse_pts, m_reverse_pts, AVSEEK_FLAG_FRAME);
+		ret = avformat_seek_file(fmt_ctx, 0, 0, reverse_target_pts, reverse_target_pts, AVSEEK_FLAG_FRAME);
 		if (ret < 0)
 		{
-			//_d("[DEMUXER:REVERSE.ch%d] ret : %d, not work, first(%lld), (m_reverse_pts : %lld)\n", m_nChannel, ret, m_file_first_pts, m_reverse_pts);
+			_d("[DEMUXER:REVERSE.ch%d] not work, target (%lld)\n", m_nChannel, reverse_target_pts);
 			return false;
 		}
 		else
 		{
-			//_d("[DEMUXER:REVERSE.ch%d] ret : %d , tm(%lld) seek completed, (%lld ~ %lld)\n", m_nChannel, ret, m_reverse_pts, fmt_ctx->start_time, fmt_ctx->start_time + fmt_ctx->duration);
+			//_d("[DEMUXER:REVERSE.ch%d] (%lld) seek completed, (%lld ~ %lld)\n", m_nChannel, reverse_target_pts, m_first_pts, m_last_pts);
 		}
 #if 1
-		if (m_file_first_pts > ((m_reverse_pts / timeBase.den) * AV_TIME_BASE))
+		if (m_first_pts > reverse_target_pts)
 		{
-			//_d("[DEMUXER:REVERSE.ch%d] file first arrived, file_first_pts : %lld, reverse_seek pts : %lld), (%lld)\n", m_nChannel, m_file_first_pts, ((m_reverse_pts / timeBase.den) * AV_TIME_BASE), m_reverse_pts);
+			_d("[DEMUXER:REVERSE.ch%d] file first arrived, (%lld)/(%lld)\n", m_nChannel, m_first_pts, reverse_target_pts);
 			return false;
 		}
 #endif
@@ -888,35 +687,14 @@ bool CDemuxer::Reverse()
 	return true;
 }
 
-int CDemuxer::FindFileIndexFromFrame(int nFrame, int *outnFrame)
-{
-	int ret_idx = 0;
-	for (int i = 0; i < m_files.size(); i++)
-	{
-		int file_frame = m_files[i]["frame"].asInt();
-		if (nFrame < file_frame)
-		{
-			break;
-		}
-		else
-		{
-			nFrame = nFrame - file_frame;
-			ret_idx++;
-		}
-	}
-	*outnFrame = nFrame;
-	return ret_idx;
-}
-
 int CDemuxer::FindFileIndexFromPTS(int64_t pts)
 {
 	int ret_idx = 0;
 	for (int i = 0; i < m_files.size(); i++)
 	{
-		//int file_frame = m_files[i]["frame"].asInt();
 		int64_t first_pts = m_files[i]["first_pts"].asInt64();
 		int64_t last_pts = m_files[i]["last_pts"].asInt64();
-		cout << "[FindPTS:ch" << m_nChannel << "] first : " << first_pts << ", last : " << last_pts << endl;
+		//cout << "[FindPTS:ch" << m_nChannel << "] first : " << first_pts << ", last : " << last_pts << endl;
 		if (pts < last_pts && pts >= first_pts)
 		{
 			break;
@@ -994,14 +772,26 @@ void CDemuxer::SetPause(bool state)
 	{
 		m_CSender->SetPause(state);
 	}
-
 	//cout << "[DEMUXER.ch" << m_nChannel << "] Set Pause : " << m_IsPause << endl;
+}
+
+void CDemuxer::SetPauseSync(int64_t sync_pts)
+{
+	if (m_CSender)
+	{
+		m_CSender->SetPauseSync(sync_pts);
+	}
+}
+
+void CDemuxer::SetSync(int64_t sync_pts)
+{
+	m_offset_pts = sync_pts;
 }
 
 void CDemuxer::SetReverse(bool state)
 {
 	m_bIsRerverse = state;
-	cout << "[DEMUXER.ch" << m_nChannel << "] Set Reverse : " << m_bIsRerverse << endl;
+	//cout << "[DEMUXER.ch" << m_nChannel << "] Set Reverse : " << m_bIsRerverse << endl;
 	if (m_CSender)
 	{
 		m_CSender->SetReverse(state);

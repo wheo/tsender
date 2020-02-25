@@ -11,63 +11,64 @@
 class CCommBase // Class for comm. module base
 {
 public:
-    CCommBase();
-    ~CCommBase();
+	CCommBase();
+	~CCommBase();
 
-    bool IsAlive() { return m_bIsAlive; };
-
-protected:
-    pthread_mutex_t g_mutex;
-    int m_sd; // Socket descriptor
-    bool m_bIsAlive;
-
-    char m_sndbuf[8];
-    char m_buff[1024 * 128];
+	bool IsAlive() { return m_bIsAlive; };
 
 protected:
-    int SR(char *pBuff, int nLen);
-    int SS(char *pBuff, int nLen);
+	pthread_mutex_t g_mutex;
+	int m_sd; // Socket descriptor
+	bool m_bIsAlive;
+
+	char m_sndbuf[8];
+	char m_buff[1024 * 128];
+
+protected:
+	int SR(char *pBuff, int nLen);
+	int SS(char *pBuff, int nLen);
 };
 
 class CCommMgr : public PThread
 {
 public:
-    CCommMgr();
-    ~CCommMgr();
+	CCommMgr();
+	~CCommMgr();
 
-    bool Open(int nPort, Json::Value attr);
-    bool Echo(char *buf);
-    void Sync();
-
-protected:
-    void Run();
-    void OnTerminate(){};
-    void Delete();
-    bool SetSocket();
-    bool RX();
-    bool TX(char *buff, int size);
+	bool Open(int nPort, Json::Value attr);
+	bool Echo(char *buf);
+	int64_t GetMaxPTS();
+	void Sync(int64_t sync_pts);
 
 protected:
-    int m_nPort;
-    int m_sdRecv;
-    int m_sdSend;
-    int m_nChannel;
-    bool m_bIsRunning;
-    bool m_bIsReverse;
-    bool m_bIsReverseOld;
-    struct sockaddr_in m_sin;
-    Json::Value m_attr;
-    CDemuxer *m_CDemuxer[MAX_NUM_CHANNEL];
-    pthread_mutex_t m_mutex_comm;
+	void Run();
+	void OnTerminate(){};
+	void Delete();
+	bool SetSocket();
+	bool RX();
+	bool TX(char *buff, int size);
+
+protected:
+	int m_nPort;
+	int m_sdRecv;
+	int m_sdSend;
+	int m_nChannel;
+	bool m_bIsRunning;
+	bool m_bIsReverse;
+	bool m_bIsReverseOld;
+	struct sockaddr_in m_sin;
+	Json::Value m_attr;
+	CDemuxer *m_CDemuxer[MAX_NUM_CHANNEL];
+	pthread_mutex_t m_mutex_comm;
 
 private:
-    bool m_bIsPause;
-    bool m_audioseek;
-    int m_nSpeed;
-    int m_nMoveSec;
+	bool m_bIsPause;
+	bool m_audioseek;
+	int m_nSpeed;
+	int m_nMoveSec;
 
 protected:
-    //CCommCt *m_pCt[MAX_NUM_SIM_CLIENT];
+	//CCommCt *m_pCt[MAX_NUM_SIM_CLIENT];
 };
 
 #endif // _COMM_H_
