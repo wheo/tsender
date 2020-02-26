@@ -297,11 +297,13 @@ bool CCommMgr::RX()
 						{
 							m_CDemuxer[i]->SetPause(true);
 						}
+#if 0
 						int max_pts = GetMaxPTS();
 						for (int i = 0; i < m_nChannel; i++)
 						{
 							m_CDemuxer[i]->SetPauseSync(max_pts);
 						}
+#endif
 						m_bIsPause = true;
 					}
 				}

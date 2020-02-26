@@ -1,8 +1,9 @@
 #ifndef _QUEUE_H_
 #define _QUEUE_H_
 
-#define MAX_NUM_QUEUE 4
-#define MAX_NUM_AUDIO_QUEUE 10
+#define MAX_NUM_ANALOG_QUEUE 4
+#define MAX_NUM_IRST_QUEUE 2
+#define MAX_NUM_AUDIO_QUEUE 4
 #define QUE_INFINITE -1
 #define MIN_BUF_FRAME 9
 
@@ -72,9 +73,6 @@ private:
 	int m_nReadAudioPos;
 	int m_nWriteAudioPos;
 
-	//int m_nReadFramePos;
-	//int m_nWriteFramePos;
-
 	uint64_t m_offset_pts;
 
 	uint64_t m_current_video_pts;
@@ -85,8 +83,8 @@ private:
 
 	pthread_mutex_t m_mutex;
 
-	AVPacket m_pkt[MAX_NUM_QUEUE];
-	VIDEOELEM m_ve[MAX_NUM_QUEUE];
+	AVPacket m_pkt[MAX_NUM_ANALOG_QUEUE];
+	VIDEOELEM m_ve[MAX_NUM_ANALOG_QUEUE];
 	ELEM m_e[MAX_NUM_AUDIO_QUEUE];
 };
 

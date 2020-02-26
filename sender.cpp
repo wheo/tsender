@@ -105,14 +105,14 @@ bool CSender::Create(Json::Value info, Json::Value attr, string type, int nChann
 	m_nChannel = nChannel;
 	m_attr = attr;
 	m_type = type;
-	m_nSpeed = 1;
+	m_nSpeed = 0;
 
 	cout << "[SENDER.ch" << m_nChannel << "] type : " << m_type << endl;
 
 	if (SetSocket())
 	{
 		cout << "[SENDER.ch" << m_nChannel << "] SetSocket config is completed" << endl;
-		usleep(1000);
+		//usleep(10000);
 		Start();
 	}
 	return true;

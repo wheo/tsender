@@ -78,7 +78,7 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 	int nQueueSize = 0;
 	if (m_nChannel < 4)
 	{
-		nQueueSize = 2;
+		nQueueSize = MAX_NUM_ANALOG_QUEUE;
 	}
 	else if (m_nChannel == 4 || m_nChannel == 5)
 	{
@@ -86,7 +86,7 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 	}
 	else if (m_nChannel == 6 || m_nChannel == 7)
 	{
-		nQueueSize = 10;
+		nQueueSize = MAX_NUM_AUDIO_QUEUE;
 	}
 
 	string type = GetChannelType(m_nChannel);
@@ -97,8 +97,8 @@ bool CDemuxer::Create(Json::Value info, Json::Value attr, int nChannel)
 	cout << "[DEMUXER.ch" << m_nChannel << "] type : " << type << ", size : " << nQueueSize << endl;
 
 	m_CSender = new CSender();
-	m_CSender->Create(info, attr, type, nChannel);
 	m_CSender->SetQueue(&m_queue, nChannel);
+	m_CSender->Create(info, attr, type, nChannel);
 
 	Start();
 	return true;

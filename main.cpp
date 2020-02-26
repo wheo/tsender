@@ -4,10 +4,31 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
+#define MY_SEMAPORE "tmuxer"
+
 bool exit_flag_main = false;
 
 pthread_mutex_t sleepMutex;
 pthread_cond_t sleepCond;
+
+sem_t *gRunning;
+
+bool isRunning()
+{
+	cout << "!!!!!!!!!!!!" << endl;
+	bool ret = false;
+
+	gRunning = sem_open((char *)MY_SEMAPORE, O_CREAT | O_EXCL, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, 1);
+
+	if (gRunning == SEM_FAILED)
+	{
+		if (errno == EEXIST)
+		{
+			return true;
+		}
+	}
+	return ret;
+}
 
 void sigfunc(int signum)
 {
