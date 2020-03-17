@@ -48,7 +48,7 @@ Json::Value GetOutputFileList(string basepath)
 				stringstream sstm;
 				sstm << basepath << "/" << ent->d_name;
 
-				cout << "v : " << v.size() << endl;
+				//cout << "v : " << v.size() << endl;
 
 				for (vector<string>::iterator iter = v.begin(); iter != v.end(); iter++)
 				{
@@ -132,11 +132,7 @@ Json::Value GetOutputFileList(string basepath)
 								channel["total_frame"] = total_frame;
 								channel["filename"] = metapath;
 								channel["idx"] = sub_ent->d_name;
-								channel["num"] = meta["num"];
-								channel["den"] = meta["den"];
-								//channel["idx"] = sub_idx;
 								total_frame = 0;
-								//sub_idx++;
 							}
 							b["channels"].append(channel);
 							channel.clear();
@@ -154,6 +150,8 @@ Json::Value GetOutputFileList(string basepath)
 	return root;
 }
 
+//deprecated
+#if 0
 bool GetOutputCheck(string basepath, string path)
 {
 	DIR *dir = opendir(basepath.c_str());
@@ -174,6 +172,7 @@ bool GetOutputCheck(string basepath, string path)
 	closedir(dir);
 	return false;
 }
+#endif
 
 bool IsDirExist(string path)
 {

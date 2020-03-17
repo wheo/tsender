@@ -135,7 +135,7 @@ bool CCommMgr::RX()
 		m_sin = sin;
 
 		//send echo
-		TX(buff, rd);
+		//TX(buff, rd);
 
 		string strbuf;
 		strbuf = (char *)buff;
@@ -322,7 +322,7 @@ bool CCommMgr::RX()
 						m_CDemuxer[i]->SetMoveSec(m_nMoveSec);
 						if (m_bIsPause == true)
 						{
-							m_CDemuxer[i]->SetPauseSync(m_nMoveSec * AV_TIME_BASE + (AV_TIME_BASE / 4));
+							m_CDemuxer[i]->SetPauseSync(m_nMoveSec * AV_TIME_BASE);
 						}
 					}
 				}
@@ -428,7 +428,7 @@ bool CCommMgr::TX(char *buff, int size)
 	//cout << "[COMM] buff size : " << sizeof(buff) << endl;
 
 	sendto(m_sdSend, buff, size, 0, (struct sockaddr *)&m_sin, sin_size);
-	cout << "[COMM] ip : " << inet_ntoa(m_sin.sin_addr) << " port : " << htons(m_sin.sin_port) << ", send message(" << size << ") : " << buff << endl;
+	cout << "[COMM] ip : " << inet_ntoa(m_sin.sin_addr) << " port : " << htons(m_sin.sin_port) << ", send message(" << size << ")" << endl;
 }
 
 int64_t CCommMgr::GetMaxPTS()

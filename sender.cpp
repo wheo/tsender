@@ -142,6 +142,8 @@ void CSender::Run()
 	int nOldSpeed = 1;
 	int speed_type = 0;
 
+	bool isSeekAfter = false;
+
 	bool isPause = false;
 	bool pauseOld = false;
 	bool isReverse = false;
@@ -153,7 +155,6 @@ void CSender::Run()
 	m_current_pts = 0;
 
 	m_begin = high_resolution_clock::now();
-	int nFrame = 0;
 
 	while (!m_bExit)
 	{
@@ -181,7 +182,6 @@ void CSender::Run()
 		}
 #endif
 		m_begin = m_end;
-		nFrame++;
 		out_diff = target_time - tick_diff;
 
 		if (m_type == "video")
@@ -227,9 +227,11 @@ void CSender::Run()
 					cout << "[SENDER.ch" << m_nChannel << "] !!!!!!!!!!! check !!!!!!!!!!!" << old_offset_pts << " / " << offset_pts << endl;
 					old_pts = 0;
 					target_time = m_current_pts - offset_pts;
+					isSeekAfter = true;
 				}
 				else
 				{
+#if 0
 					if (isReverse == false)
 					{
 						if (offset_pts > m_current_pts)
@@ -245,11 +247,26 @@ void CSender::Run()
 					{
 						target_time = llabs((m_current_pts - old_pts)) / nSpeed;
 					}
+#endif
+					target_time = llabs((m_current_pts - old_pts)) / nSpeed;
+
+					if (isReverse == false)
+					{
+						if (offset_pts > m_current_pts)
+						{
+							target_time = 0;
+						}
+					}
 				}
 
-				if (m_sync_pause_pts < m_current_pts)
+				if (isSeekAfter == true)
 				{
-					m_sync_pause_pts = 0;
+					isSeekAfter = false;
+					if (m_sync_pause_pts < m_current_pts)
+					{
+						cout << "[SENDER.ch" << m_nChannel << "] sync_pause_pts (" << m_sync_pause_pts << ")/(" << m_current_pts << ")" << endl;
+						m_sync_pause_pts = 0;
+					}
 				}
 
 				if (isPause == false || m_sync_pause_pts > m_current_pts)
